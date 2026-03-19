@@ -1,49 +1,33 @@
+/**
+ * Core VetNotes Types
+ */
 
-export type GameLens = 'cozy' | 'adventure' | 'tactical';
-
-export interface RewardTier {
-    xp: number;
-    coins: number;
-    badge?: string;
-    certificationPoints?: number;
+export interface SOAPNote {
+    subjective: string;
+    objective: string;
+    assessment: string;
+    plan: string;
+    missedCharges?: string[];
 }
 
-export interface Story {
-    id: string;
-    title: string;
-    narrator: string;
-    transcript: string;
-    audioUrl?: string;
-    permissionSource: string; // e.g., "Approved by Yalanji Elders"
-    suburb?: string;
-}
-
-export interface RegionConfig {
-    id: string;
-    name: string;
-    features: {
-        custodianship: boolean;
-        education: boolean;
-        professional: boolean;
+export interface VetClinicalData {
+    metadata: {
+        version: string;
+        timestamp: number;
+        origin: "VetNotes" | "Aiva";
+        clientApp: string;
     };
-    storyIds: string[];
-    postcode?: string;
-}
-
-export interface PointOfDiscovery {
-    id: string;
-    type: 'invasive_pest' | 'infrastructure_fault' | 'wildlife_sighting' | 'biosecurity_concern';
-    subtype?: string;
-    coordinates: { lat: number; lng: number };
-    reportedBy: string;
-    reportedAt: Date;
-    photoUri?: string;
-    aiClassification?: {
+    patient: {
+        id?: string;
+        name?: string;
         species?: string;
-        confidence: number;
-        riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+        breed?: string;
     };
-    questStatus: 'OPEN' | 'REPORTED' | 'VERIFIED' | 'RESOLVED';
-    rewardTier: RewardTier;
-    xp?: number; // Added for convenience in simpler loops
+    soap: {
+        subjective: string;
+        objective: string;
+        assessment: string;
+        plan: string;
+    };
+    charges: string[];
 }
