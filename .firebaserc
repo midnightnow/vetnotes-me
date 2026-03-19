@@ -1,0 +1,22 @@
+{
+  "projects": {
+    "pro": "vetnotes-pro",
+    "mvp": "vetnotes-mvp"
+  },
+  "targets": {
+    "vetnotes-pro": {
+      "hosting": {
+        "production": [
+          "vetnotes-pro"
+        ]
+      }
+    },
+    "vetnotes-mvp": {
+      "hosting": {
+        "production": [
+          "vetnotes-mvp"
+        ]
+      }
+    }
+  }
+}
