@@ -170,12 +170,38 @@
 	}
 
 	function copyToClipboard() {
-		navigator.clipboard.writeText(transcript);
-		status = "Copied to Clipboard";
+	        navigator.clipboard.writeText(transcript);
+	        status = "Copied to Clipboard";
 	}
 
-	async function handlePushToPIMS() {
-		if (!soapNote) return;
+	function exportToVet() {
+	        if (!soapNote) return;
+	        const doc = {
+	            version: "1.1",
+	            type: "soap_note",
+	            id: `vet_${Date.now()}`,
+	            created_at: new Date().toISOString(),
+	            updated_at: new Date().toISOString(),
+	            source: "vetnotes",
+	            patient: {
+	                id: "unknown",
+	                species: "canine"
+	            },
+	            data: soapNote
+	        };
+	        const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+	        const url = URL.createObjectURL(blob);
+	        const a = document.createElement('a');
+	        a.href = url;
+	        a.download = `consult_${Date.now()}.vet`;
+	        document.body.appendChild(a);
+	        a.click();
+	        document.body.removeChild(a);
+	        URL.revokeObjectURL(url);
+	        status = "Exported .vet file";
+	}
+
+	async function handlePushToPIMS() {		if (!soapNote) return;
 		isPushing = true;
 		status = "Syncing with PIMS...";
 		try {
@@ -337,10 +363,10 @@
 				<div class="flex justify-between items-center mb-8">
 					<h3 class="text-xl font-bold text-white/90 tracking-tight">Clinical Intelligence</h3>
 					<div class="flex space-x-3">
-						<button on:click={copyToClipboard} disabled={!transcript} class="px-4 py-2 text-xs font-semibold bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all disabled:opacity-50">Copy Note</button>
-						<button on:click={handlePushToPIMS} disabled={!transcript || isPushing} class="px-4 py-2 text-xs font-semibold {isPushing ? 'bg-blue-800' : 'bg-blue-600 hover:bg-blue-500'} rounded-xl transition-all shadow-lg">{isPushing ? "Syncing..." : "Sync to PIMS"}</button>
-					</div>
-				</div>
+					        <button on:click={exportToVet} disabled={!soapNote} class="px-4 py-2 text-xs font-semibold bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all disabled:opacity-50">Export .vet</button>
+					        <button on:click={copyToClipboard} disabled={!transcript} class="px-4 py-2 text-xs font-semibold bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all disabled:opacity-50">Copy Note</button>
+					        <button on:click={handlePushToPIMS} disabled={!transcript || isPushing} class="px-4 py-2 text-xs font-semibold {isPushing ? 'bg-blue-800' : 'bg-blue-600 hover:bg-blue-500'} rounded-xl transition-all shadow-lg">{isPushing ? "Syncing..." : "Sync to PIMS"}</button>
+					</div>				</div>
 
 				<div class="grid md:grid-cols-3 gap-8 flex-grow">
 					<div class="space-y-6">

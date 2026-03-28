@@ -1,12 +1,6 @@
-/**
- * Core VetNotes Types
- */
+import type { SOAPData } from '@vetsorcery/sdk';
 
-export interface SOAPNote {
-    subjective: string;
-    objective: string;
-    assessment: string;
-    plan: string;
+export interface SOAPNote extends SOAPData {
     missedCharges?: string[];
 }
 

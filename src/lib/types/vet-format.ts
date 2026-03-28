@@ -1,8 +1,6 @@
-/**
- * VetNotes Standard Clinical Data Format
- * 
- * A structured representation of a veterinary consultation.
- */
+import type { VetDocument, Patient, SOAPData, SpeciesType } from '@vetsorcery/sdk';
+
+export type { VetDocument, Patient, SOAPData, SpeciesType };
 
 export interface VetClinicalData {
     metadata: {
@@ -25,3 +23,4 @@ export interface VetClinicalData {
     };
     charges: string[];
 }
+

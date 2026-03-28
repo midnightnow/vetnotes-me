@@ -17,13 +17,7 @@ O: [Objective - physical exam findings, vitals]
 A: [Assessment - differential diagnoses, clinical impression]
 P: [Plan - treatments, medications, follow-up]`;
 
-export interface SOAPNote {
-    subjective: string;
-    objective: string;
-    assessment: string;
-    plan: string;
-    missedCharges?: string[];
-}
+export type { SOAPNote } from '../types';
 
 export async function structureToSOAP(transcript: string, useCloud = false): Promise<SOAPNote> {
     if (useCloud && typeof window !== 'undefined') {
