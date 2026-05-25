@@ -77,7 +77,17 @@ function extractObjective(text: string): string {
         const match = text.match(pattern);
         if (match) findings.push(match[0]);
     }
-    return findings.length > 0 ? findings.join('. ') + '.' : 'Physical exam performed.';
+
+    // Inference: if no explicit vitals but vet implies normal exam
+    if (findings.length === 0) {
+        const normalIndicators = /(?:healthy|normal|unremarkable|fine|good condition|bright|alert|responsive|wnl|within normal|no abnormalities)/i;
+        if (normalIndicators.test(text)) {
+            return 'General physical exam: No abnormalities detected on systems examined. Specific vitals not narrated.';
+        }
+        return 'Physical exam performed. Vitals: Not narrated.';
+    }
+
+    return findings.join('. ') + '.';
 }
 
 function extractAssessment(text: string): string {

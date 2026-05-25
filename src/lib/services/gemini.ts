@@ -30,6 +30,13 @@ RULES:
 3. Use professional medical terminology (e.g. "vomiting" -> "emesis").
 4. Be concise and telegraphic style.
 
+HANDLING MISSING INFORMATION (CRITICAL — INFERENCE OVER EXTRACTION):
+- If a system was NOT explicitly examined or narrated, write "Not recorded" for that system. NEVER leave a field as an empty string.
+- If the vet implies a normal exam without specifics (e.g. "looks healthy", "everything else is fine", "unremarkable"), infer: "General physical exam: No abnormalities detected on systems examined. Specific vitals not narrated."
+- If vitals (HR, RR, Temp) are not mentioned, write "Vitals: Not narrated" — do NOT fabricate numbers.
+- If the vet only discusses one body system, note the examined system AND state "Remaining systems: Not examined/not narrated."
+- The goal is ZERO empty fields. Every field must contain either extracted data, an inference, or an explicit "Not recorded/Not narrated" statement.
+
 CLINICAL PROCEDURE DETECTION (CRITICAL):
 Scan the transcript for ANY procedures, items, or services mentioned. If mentioned or implied, add to "missedCharges" (to be reviewed by clinician).
 Examples to watch for:
