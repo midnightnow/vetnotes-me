@@ -1,39 +1,40 @@
 {
-	"name": "vetnotes-me",
-	"private": true,
-	"version": "0.0.1",
-	"type": "module",
-	"scripts": {
-		"dev": "vite dev",
-		"build": "vite build",
-		"preview": "vite preview",
-		"prepare": "svelte-kit sync || echo ''",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-		"deploy:mvp": "npm run build && firebase deploy -P mvp --only hosting",
-		"deploy:pro": "npm run build && firebase deploy -P pro --only hosting"
-	},
-	"devDependencies": {
-		"@sveltejs/adapter-static": "^3.0.10",
-		"@sveltejs/kit": "^2.49.1",
-		"@sveltejs/vite-plugin-svelte": "^6.2.1",
-		"@tailwindcss/typography": "^0.5.19",
-		"autoprefixer": "^10.4.23",
-		"daisyui": "^4.12.24",
-		"jsdom": "^27.4.0",
-		"postcss": "^8.5.6",
-		"svelte": "^5.45.6",
-		"svelte-check": "^4.3.4",
-		"tailwindcss": "^3.4.19",
-		"typescript": "^5.9.3",
-		"vite": "^7.2.6",
-		"vitest": "^4.0.18",
-		"wrangler": "^4.58.0"
-	},
-	"dependencies": {
-		"@google/generative-ai": "^0.24.1",
-		"@vetsorcery/sdk": "https://github.com/midnightnow/aivet-sdk.git#v1.1.1&subdirectory=packages/typescript",
-		"@xenova/transformers": "^2.17.2",
-		"dayjs": "^1.11.19"
-	}
+  "name": "vetnotes-me",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prepare": "svelte-kit sync || echo ''",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "deploy:mvp": "npm run build && firebase deploy -P mvp --only hosting",
+    "deploy:pro": "npm run build && firebase deploy -P pro --only hosting"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-static": "^3.0.10",
+    "@sveltejs/kit": "^2.49.1",
+    "@sveltejs/vite-plugin-svelte": "^6.2.1",
+    "@tailwindcss/typography": "^0.5.19",
+    "autoprefixer": "^10.4.23",
+    "daisyui": "^4.12.24",
+    "jsdom": "^27.4.0",
+    "postcss": "^8.5.6",
+    "svelte": "^5.45.6",
+    "svelte-check": "^4.3.4",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.6",
+    "vitest": "^4.0.18",
+    "wrangler": "^4.58.0"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@vetsorcery/sdk": "file:../../SDK/packages/typescript",
+    "@xenova/transformers": "^2.17.2",
+    "dayjs": "^1.11.19",
+    "firebase": "^11.10.0"
+  }
 }

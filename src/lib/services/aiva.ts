@@ -136,14 +136,25 @@ export function formatSOAPAsText(note: SOAPNote): string {
     return output;
 }
 
-export async function pushToPIMS(note: SOAPNote, pimsType: 'ezyvet' | 'rxworks' | 'ascend' = 'ezyvet'): Promise<{ success: boolean; message: string }> {
+export async function pushToPIMS(
+    note: SOAPNote,
+    pimsType: 'ezyvet' | 'rxworks' | 'ascend' = 'ezyvet',
+    options: {
+        patientId?: string;
+        patientName?: string;
+        species?: string;
+        template?: string;
+        rawTranscript?: string;
+    } = {}
+): Promise<{ success: boolean; message: string }> {
+    // Use the real VetSorcery sync service
+    const { syncSOAPToVetSorcery } = await import('./vetsorcery');
+
     try {
-        const pimsToken = typeof window !== 'undefined' ? localStorage.getItem(`pims_${pimsType}_token`) : null;
-        if (!pimsToken) return { success: false, message: `No ${pimsType.toUpperCase()} credentials configured.` };
-        
-        await new Promise(resolve => setTimeout(resolve, 800));
-        return { success: true, message: `✅ Synced to ${pimsType.toUpperCase()}.` };
-    } catch (error) {
-        return { success: false, message: 'PIMS integration error.' };
+        const result = await syncSOAPToVetSorcery(note, options);
+        return { success: result.success, message: result.message };
+    } catch (error: any) {
+        console.error('PIMS sync error:', error);
+        return { success: false, message: `Sync failed: ${error.message || 'Unknown error'}` };
     }
 }

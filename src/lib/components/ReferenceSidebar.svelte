@@ -312,7 +312,7 @@
                         weight={patientWeight}
                         calc={card.calc || null}
                         {studyMode}
-                        onAction={() => console.log("Card action:", card.id)}
+                        onAction={() => {}}
                     />
                 </div>
             {/each}

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { page } from "$app/stores";
     import { player } from "$lib/stores/player";
+    import AuthButton from "$lib/components/AuthButton.svelte";
 
     export let breadcrumbs: { label: string; href: string }[] = [];
 
@@ -50,8 +51,7 @@
                 <a
                     href={crumb.href}
                     class="hover:text-white transition-colors capitalize"
-                    >{crumb.label}</a
-                >
+                >{crumb.label}</a>
             {/each}
         </div>
     </div>
@@ -74,9 +74,9 @@
                 <a
                     href={link.href}
                     class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center space-x-2
-                           {currentPath === link.href
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                        : 'text-white/60 hover:text-white hover:bg-white/5'}"
+                        {currentPath === link.href
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                            : 'text-white/60 hover:text-white hover:bg-white/5'}"
                 >
                     <span>{link.icon}</span>
                     <span class="hidden lg:inline">{link.label}</span>
@@ -85,7 +85,7 @@
         {/each}
     </div>
 
-    <!-- Right: Lens Switcher -->
+    <!-- Right: Auth + Lens Switcher -->
     <div class="flex items-center space-x-4">
         <div
             class="flex items-center bg-black/30 p-1 rounded-xl border border-white/5"
@@ -93,22 +93,23 @@
             <button
                 on:click={() => setLens("standard")}
                 class="px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-all
-                       {$player.preferredLens === 'standard'
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                    : 'text-white/40 hover:text-white'}"
+                    {$player.preferredLens === 'standard'
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                        : 'text-white/40 hover:text-white'}"
             >
                 Standard
             </button>
             <button
                 on:click={() => setLens("compact")}
                 class="px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-all
-                       {$player.preferredLens === 'compact'
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                    : 'text-white/40 hover:text-white'}"
+                    {$player.preferredLens === 'compact'
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                        : 'text-white/40 hover:text-white'}"
             >
                 Compact
             </button>
         </div>
+        <AuthButton />
     </div>
 </nav>
 
