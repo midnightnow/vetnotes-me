@@ -17,13 +17,16 @@
 
     interface Ticket {
         id: string;
-        title: string;
+        title?: string;
+        subject?: string;
         description: string;
         category: 'bug' | 'feature' | 'question' | 'setup';
         priority: 'low' | 'medium' | 'high';
         status: 'open' | 'in_progress' | 'resolved' | 'closed';
         site_id: string;
         user_email: string;
+        user_uid?: string;
+        ai_response?: string;
         created_at: any;
     }
 
@@ -81,7 +84,8 @@
     function subscribeToTickets(uid: string, email: string) {
         ticketUnsub?.();
 
-        // Query global support_tickets where user_uid matches OR user_email matches
+        // Query global support_tickets by user_uid OR user_email
+        // Try uid first (most reliable for signed-in users)
         const ticketsRef = collection(db, 'support_tickets');
         const q = query(
             ticketsRef,
@@ -92,20 +96,48 @@
         ticketUnsub = onSnapshot(
             q,
             (snap) => {
-                tickets = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Ticket));
-                loading = false;
+                let results = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Ticket));
+                
+                // Also try email-based query for tickets created without uid
+                if (email) {
+                    const qEmail = query(
+                        ticketsRef,
+                        where('user_email', '==', email),
+                        orderBy('created_at', 'desc'),
+                    );
+                    onSnapshot(qEmail, (emailSnap) => {
+                        const emailResults = emailSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Ticket));
+                        // Merge, deduplicate by id
+                        const merged = new Map<string, Ticket>();
+                        for (const t of results) merged.set(t.id, t);
+                        for (const t of emailResults) merged.set(t.id, t);
+                        tickets = [...merged.values()].sort((a, b) => {
+                            const aTime = a.created_at?.seconds || 0;
+                            const bTime = b.created_at?.seconds || 0;
+                            return bTime - aTime;
+                        });
+                        loading = false;
+                    });
+                } else {
+                    tickets = results;
+                    loading = false;
+                }
             },
             () => {
-                // Fallback: try by email if uid query fails (index might not exist)
-                const qEmail = query(
-                    ticketsRef,
-                    where('user_email', '==', email),
-                    orderBy('created_at', 'desc'),
-                );
-                ticketUnsub = onSnapshot(qEmail, (snap) => {
-                    tickets = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Ticket));
+                // If uid query fails (no index), fall back to email only
+                if (email) {
+                    const qEmail = query(
+                        ticketsRef,
+                        where('user_email', '==', email),
+                        orderBy('created_at', 'desc'),
+                    );
+                    ticketUnsub = onSnapshot(qEmail, (snap) => {
+                        tickets = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Ticket));
+                        loading = false;
+                    }, () => { loading = false; });
+                } else {
                     loading = false;
-                }, () => { loading = false; });
+                }
             },
         );
     }
@@ -283,7 +315,7 @@
 
                         <!-- Title -->
                         <span class="flex-1 text-sm font-medium text-white truncate">
-                            {ticket.title || ticket.description?.slice(0, 60) || 'Untitled'}
+                            {ticket.title || ticket.subject || ticket.description?.slice(0, 60) || 'Untitled'}
                         </span>
 
                         <!-- Status badge -->
