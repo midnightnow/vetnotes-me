@@ -10,6 +10,7 @@
     const navLinks = [
         { label: "Consultation", href: "/", icon: "🩺" },
         { label: "Patients", href: "/patient", icon: "🐾" },
+        { label: "Tickets", href: "/tickets", icon: "🎫" },
         {
             label: "AIVA",
             href: "https://aiva.help",

@@ -152,7 +152,6 @@
         isLoading = true;
 
         try {
-            // sendMessage handles ALL fallbacks internally — never throws "not configured"
             const response = await sendMessage(userText, imageBase64);
             messages = [...messages, {
                 role: 'model',
@@ -160,11 +159,9 @@
                 timestamp: Date.now()
             }];
         } catch (e: any) {
-            // This should never happen since sendMessage always returns a response,
-            // but just in case:
             messages = [...messages, {
                 role: 'model',
-                text: "I'm VetNotes Support. I can help with recording, SOAP notes, templates, and more. Try asking about any of those topics!",
+                text: `⚠️ Connection error: ${e.message || 'Unable to reach support service'}. Please try again or email support@vetsorcery.com.`,
                 timestamp: Date.now()
             }];
         } finally {
