@@ -289,7 +289,8 @@
 </script>
 
 <svelte:head>
-    <title>VetNotes | Clinical Workflow</title>
+    <title>VetNotes | AI Scribe for Veterinarians — Voice-to-SOAP Notes</title>
+    <meta name="description" content="Free AI scribe for vets. Record consultations and get structured SOAP notes instantly. Voice-to-text with local PII redaction. No account required." />
 </svelte:head>
 
 <div class="max-w-6xl mx-auto px-6 py-8">
