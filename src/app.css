@@ -2,8 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens — sourced from @aiva/tokens (canonical single source of truth).
+ * Do not re-declare --aiva-* or --vet-* variables in this file.
+ */
+@import '../../../../vetsorcery-core/packages/aiva-tokens/src/tokens.css';
+
 @layer base {
     :root {
+        /* vetnotes-me local tokens — glass panel system, not in @aiva/tokens */
         --glass-bg: rgba(255, 255, 255, 0.03);
         --glass-border: rgba(255, 255, 255, 0.1);
     }
