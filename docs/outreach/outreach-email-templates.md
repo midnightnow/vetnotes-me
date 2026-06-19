@@ -68,7 +68,7 @@ We have just released Module 1: The AIVA Practice Audit. In 15 minutes, you will
 
 It is free, verifiable (0.5 Structured CPD hours), and sets a new standard for your clinic.
 
-👉 Log in to start Module 1
+Log in here to start Module 1
 
 To clinical excellence,
 Dallas McMillan

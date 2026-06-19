@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Dermatology Leader Format v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["diet", "parasiteControl", "immunosuppression", "cytology"],
+  "properties": {
+    "diet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["active", "durationWeeks", "dietType"],
+      "properties": {
+        "active": { "type": "boolean" },
+        "durationWeeks": { "type": ["number", "null"] },
+        "dietType": { "type": ["string", "null"] }
+      }
+    },
+    "parasiteControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["product", "frequencyDays", "lastGiven"],
+      "properties": {
+        "product": { "type": ["string", "null"] },
+        "frequencyDays": { "type": ["number", "null"] },
+        "lastGiven": { "type": ["string", "null"] }
+      }
+    },
+    "immunosuppression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["drug", "dose", "durationDays", "washoutWeeks"],
+      "properties": {
+        "drug": { "type": ["string", "null"] },
+        "dose": { "type": ["number", "null"] },
+        "durationDays": { "type": ["number", "null"] },
+        "washoutWeeks": { "type": ["number", "null"] }
+      }
+    },
+    "cytology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["earLeft", "earRight", "skin"],
+      "properties": {
+        "earLeft": { "type": ["string", "null"] },
+        "earRight": { "type": ["string", "null"] },
+        "skin": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

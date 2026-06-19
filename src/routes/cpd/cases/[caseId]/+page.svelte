@@ -30,6 +30,8 @@
     competency_scores: Record<CompetencyId, number>;
     certificate?: { id: string; verification_url: string };
   } | null = null;
+  let certificateDetail: { verification_url?: string; provider_veted_code?: string; hours_awarded?: number } | null = null;
+  let certificateError = '';
 
   onMount(async () => {
     await initCpdAttempt();
@@ -187,8 +189,34 @@
       };
       
       currentStep = 'COMPLETED';
+      if (result.certificate) {
+        await loadCertificateDetail(result.certificate);
+      }
     } catch (e: any) {
       errorMessage = e.message;
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  async function loadCertificateDetail(certificate: any) {
+    certificateDetail = certificate;
+    certificateError = '';
+  }
+
+  async function claimCertificate() {
+    if (!attempt?.id) return;
+    isLoading = true;
+    certificateError = '';
+    try {
+      const response = await fetch(`/api/cpd/attempt/${attempt.id}/certificate`);
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result?.error || 'Unable to load certificate.');
+      }
+      certificateDetail = result.certificate;
+    } catch (e: any) {
+      certificateError = e?.message || 'Unable to load certificate.';
     } finally {
       isLoading = false;
     }
@@ -416,10 +444,16 @@
             </div>
           </div>
 
-          {#if evaluationResults.passed && evaluationResults.certificate}
-            <a href={evaluationResults.certificate.verification_url} class="btn btn-success" target="_blank">
-              Download Verifiable CPD Certificate
-            </a>
+          {#if evaluationResults.passed}
+            {#if evaluationResults.certificate}
+              <a href={evaluationResults.certificate.verification_url} class="btn btn-success" target="_blank">
+                Download Verifiable CPD Certificate
+              </a>
+            {:else}
+              <button class="btn btn-primary" disabled={isLoading} on:click={claimCertificate}>
+                {#if isLoading}Verifying attempt...{:else}Claim Certificate{/if}
+              </button>
+            {/if}
           {/if}
         </div>
       {/if}
