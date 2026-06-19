@@ -67,7 +67,10 @@ export const POST = async ({ request, locals }: any) => {
         ? evaluatePatternRecognition(differential, keywords)
         : 1.0;
     } else {
-      comp3 = evaluatePatternRecognition(differential, CPD_SCORING_SPEC.COMP_3.gold_differential_keywords);
+      const keywords = CPD_SCORING_SPEC.COMP_3.gold_differential_keywords || [];
+      comp3 = keywords.length > 0
+        ? evaluatePatternRecognition(differential, keywords)
+        : 1.0;
     }
 
     const seededErrors = secureData.seeded_errors || [];
@@ -85,7 +88,7 @@ export const POST = async ({ request, locals }: any) => {
       COMP_5: comp5
     };
 
-    const isPass = Object.values(comp_scores).every(score => score >= 0.70);
+    const isPass = Object.values(comp_scores).every(score => score >= 0.80);
 
     // 3. Write CPDScore (Server Authority)
     const scoreData = {

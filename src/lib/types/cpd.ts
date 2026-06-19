@@ -41,8 +41,6 @@ export interface CPDCase {
   title: string;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   targeted_competencies: CompetencyId[];
-  
-  // Step 1: Blind clinical context
   signalment: {
     species: string;
     breed: string;
@@ -52,38 +50,39 @@ export interface CPDCase {
   };
   clinical_history: string;
   physical_examination?: string;
-  raw_images: Array<{
+  raw_images?: Array<{
     image_id: string;
     view: string;
     url: string;
     is_educational: boolean;
   }>;
-  
-  // Quiz questions (questions only, no correct indices or rationales)
   quiz_questions: Array<{
     id: string;
     question: string;
     options: string[];
   }>;
+  session_type?: CPDSessionType;
+  is_free?: boolean;
+  hours_awarded?: number;
+  provider_name?: string;
+  provider_code?: string;
+  activity_code?: string;
+  module_id?: string;
 }
-
-// ==========================================
-// SECURE DATABASE SCHEMAS (Admin SDK Only)
-// ==========================================
-export type SeededError = {
-  id: string;
-  anatomical_zone: AnatomicalZone;
-  error_type: 'false_positive' | 'false_negative' | 'misclassification';
-  ai_claim: string;
-  ground_truth_fact: string;
-  clinical_justification: string;
-};
 
 export interface CPDSecureCaseData {
   case_id: string;
-  // Secure case seed/reveal data
+  insight_text?: string;
+  reference_document_url?: string;
   ai_report_raw?: string;
-  seeded_errors?: SeededError[];
+  seeded_errors?: Array<{
+    id: string;
+    anatomical_zone: AnatomicalZone;
+    error_type: 'false_positive' | 'false_negative' | 'misclassification';
+    ai_claim: string;
+    ground_truth_fact: string;
+    clinical_justification: string;
+  }>;
   quiz_answers: Array<{
     question_id: string;
     correct_option_index: number;
@@ -91,17 +90,12 @@ export interface CPDSecureCaseData {
   }>;
 }
 
-// ==========================================
-// USER PROGRESSION & ATTEMPT SCHEMAS
-// ==========================================
 export interface CPDAttempt {
   id: string;
   user_id: string;
   case_id: string;
   attempt_version: number;
   current_step: CPDStep;
-  
-  // User submissions gathered during the steps
   user_reasoning?: {
     quality_assessment_notes: string;
     abnormalities_identified: string;
@@ -119,13 +113,9 @@ export interface CPDAttempt {
     question_id: string;
     selected_option_index: number;
   }>;
-  
-  // Performance and fraud-prevention tracking
   started_at: string;
   ai_revealed_at?: string;
   completed_at?: string;
-
-  // Non-forkable audit ledger anchors (query-free hash chaining)
   last_event_hash?: string;
   ledger_sequence?: number;
 }
@@ -135,7 +125,7 @@ export interface CPDScore {
   attempt_id: string;
   user_id: string;
   case_id: string;
-  competency_scores: Record<CompetencyId, number>; // Scores 0.0 to 1.0
+  competency_scores: Record<CompetencyId, number>;
   is_overall_pass: boolean;
   calculated_at: string;
 }
@@ -153,16 +143,6 @@ export interface CPDCertificate {
   verification_url: string;
 }
 
-// ==========================================
-// REGULATORY & ATTENDANCE SCHEMAS
-// ==========================================
-
-export type CPDSessionType = 'IMAGING' | 'VT';
-
-/**
- * Represents an accredited, approved CPD session (the delivery unit).
- * Groups cases together under a specific taxonomy category and required duration.
- */
 export interface CPDSession {
   id: string;
   module_id: string;
@@ -171,25 +151,17 @@ export interface CPDSession {
   session_type: CPDSessionType;
   duration_minutes: number;
   is_free: boolean;
-  
-  // Sequence of cases that must be completed to satisfy this session
   case_ids: string[];
-  
-  // Topics
+  created_at?: string;
 }
 
-/**
- * Captures objective participation and attendance duration.
- * Provides the compliance proof required by auditors.
- */
 export interface CPDAttendance {
-  id: string; // Structured as `att_user_${userId}_sess_${sessionId}`
+  id: string;
   user_id: string;
   session_id: string;
-  started_at: string;      // ISO Timestamp
-  last_active_at: string;  // ISO Timestamp
+  started_at: string;
+  last_active_at: string;
   completed_at: string | null;
-  
   completed_case_ids: string[];
-  completion_percentage: number; // completed_case_ids.length / CPDSession.case_ids.length
+  completion_percentage: number;
 }
