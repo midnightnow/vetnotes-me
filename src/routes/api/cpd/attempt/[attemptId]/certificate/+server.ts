@@ -21,7 +21,13 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     throw error(403, 'Forbidden: You do not own this attempt');
   }
 
-  const isPass = attempt.current_step === 'COMPLETED';
+  const scoreSnap = await adminDb.collection('cpd_scores').doc(`score_${attemptId}`).get();
+  if (!scoreSnap.exists) {
+    throw error(404, 'Score record not found. Please verify the completion run.');
+  }
+
+  const scoreData = scoreSnap.data();
+  const isPass = scoreData?.is_overall_pass === true;
   if (!isPass) {
     throw error(400, 'Attempt does not meet the passing threshold for certificate generation');
   }

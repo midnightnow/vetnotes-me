@@ -224,8 +224,8 @@
 
   // Helper utility: Display score status levels
   function getTierLabel(score: number): { label: CompetencyTier; class: string } {
-    if (score >= 1.0) return { label: 'COMPETENT', class: 'tier-pass' };
-    if (score >= 0.70) return { label: 'BORDERLINE', class: 'tier-border' };
+    if (score >= 0.80) return { label: 'COMPETENT', class: 'tier-pass' };
+    if (score >= 0.60) return { label: 'BORDERLINE', class: 'tier-border' };
     return { label: 'NOT_COMPETENT', class: 'tier-fail' };
   }
 </script>
