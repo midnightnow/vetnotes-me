@@ -15,7 +15,9 @@ import { resolveClinicContext, clearClinicContext, type ClinicContext } from '$l
 
 // Core auth state
 export const user = writable<User | null>(null);
+export const currentUser = user; // Alias for compatibility
 export const loading = writable<boolean>(true);
+export const authLoading = loading; // Alias for compatibility
 export const isAuthenticated = derived(user, ($user) => !!$user);
 
 // Clinic context (resolved after sign-in)

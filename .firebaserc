@@ -8,6 +8,9 @@
       "hosting": {
         "production": [
           "vetnotes-pro"
+        ],
+        "vetcpd": [
+          "vetcpd"
         ]
       }
     },

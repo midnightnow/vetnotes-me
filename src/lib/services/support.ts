@@ -57,9 +57,13 @@ export async function sendMessage(text: string, imageBase64?: string): Promise<s
             session_id: sessionId,
             message: text,
             image: imageBase64 || undefined,
-            user_context: user
-                ? { uid: user.uid, email: user.email, name: user.displayName }
-                : undefined,
+            user_context: {
+                uid: user?.uid || null,
+                email: user?.email || null,
+                name: user?.displayName || null,
+                page: typeof window !== 'undefined' ? window.location.pathname : '/',
+                hostname: typeof window !== 'undefined' ? window.location.hostname : 'vetnotes.me',
+            },
         }),
     });
 

@@ -17,7 +17,33 @@ O: [Objective - physical exam findings, vitals]
 A: [Assessment - differential diagnoses, clinical impression]
 P: [Plan - treatments, medications, follow-up]`;
 
-export type { SOAPNote } from '../types';
+import type { SOAPNote } from '../types';
+import { auth } from '$lib/firebase';
+
+export type { SOAPNote };
+
+const PROCEDURE_MAP: Record<string, string> = {
+    'EXAM_CONSULT': 'Standard Consultation',
+    'EXAM_TELEHEALTH': 'Telehealth Consultation',
+    'EXAM_EMERGENCY': 'Emergency Consultation',
+    'VACCINATION_CORE': 'Core Vaccination',
+    'VACCINATION_RABIES': 'Rabies Vaccination',
+    'DIAGNOSTIC_BLOODWORK': 'Blood Work',
+    'DIAGNOSTIC_URINALYSIS': 'Fecal Float',
+    'DIAGNOSTIC_XRAY': 'Radiograph',
+    'DIAGNOSTIC_ULTRASOUND': 'Ultrasound',
+    'DENTAL_SCALE_POLISH_LVL1': 'Dental Scale & Polish',
+    'DENTAL_SCALE_POLISH_LVL2': 'Dental Scale & Polish',
+    'DENTAL_SCALE_POLISH_LVL3': 'Dental Scale & Polish',
+    'TOOTH_EXTRACTION_SIMPLE': 'Tooth Extraction',
+    'TOOTH_EXTRACTION_SURGICAL': 'Surgical Extraction',
+    'ANESTHESIA_GENERAL': 'Sedation',
+    'FLUID_THERAPY_IV': 'IV Fluids',
+    'HOSPITALIZATION': 'Hospitalization Fee',
+    'GROOMING_NAIL_TRIM': 'Nail Trim',
+    'BANDAGE_WOUND_CARE': 'Bandage Wound Care',
+    'MICROCHIP': 'Microchip Implantation'
+};
 
 export async function structureToSOAP(transcript: string, useCloud = false): Promise<SOAPNote> {
     if (useCloud && typeof window !== 'undefined') {
@@ -28,14 +54,38 @@ export async function structureToSOAP(transcript: string, useCloud = false): Pro
 
 async function structureViaGemini(transcript: string): Promise<SOAPNote> {
     try {
-        const response = await fetch('/api/structure', {
+        const currentUser = auth.currentUser;
+        if (!currentUser) throw new Error('Unauthenticated');
+        const token = await currentUser.getIdToken();
+
+        const response = await fetch('/api/v1/voice-notes/extract-soap', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify({ transcript })
         });
         if (!response.ok) throw new Error('Gemini API call failed');
-        return await response.json();
+        const res = await response.json();
+        if (!res.success || !res.soap) throw new Error('Failed to extract SOAP');
+
+        const soapData = res.soap.soap;
+        const clinicalIntent = res.soap.clinicalIntent;
+
+        // Map extracted procedure taxonomy codes to human-friendly missed charges labels
+        const procedures = clinicalIntent?.procedures || [];
+        const missedCharges = procedures.map((p: string) => PROCEDURE_MAP[p] || p);
+
+        return {
+            subjective: soapData.subjective || 'Not recorded.',
+            objective: soapData.objective || 'Not recorded.',
+            assessment: soapData.assessment || 'Not recorded.',
+            plan: soapData.plan || 'Not recorded.',
+            missedCharges: missedCharges.length > 0 ? missedCharges : undefined
+        };
     } catch (error) {
+        console.error('Failed to structure via cloud API, falling back to local parsing:', error);
         return structureLocally(transcript);
     }
 }

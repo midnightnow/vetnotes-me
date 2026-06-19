@@ -13,6 +13,7 @@ export interface ClinicContext {
     clinicId: string;
     clinicName: string;
     role: string;
+    tier?: string;
     geminiApiKey?: string;
 }
 
@@ -33,6 +34,7 @@ export async function resolveClinicContext(): Promise<ClinicContext | null> {
             clinicId: data.clinic_id || data.clinicId || '',
             clinicName: data.clinic_name || data.clinicName || 'My Clinic',
             role: data.role || 'veterinarian',
+            tier: data.subscription?.tier || data.subscriptionTier || 'free',
             geminiApiKey: data.aivaApiKey || data.geminiApiKey || undefined
         };
     } catch (error) {
@@ -205,10 +207,12 @@ export async function syncSOAPToVetSorcery(
         let recordRef;
         try {
             // Try tenant-scoped path first
-            recordRef = await addDoc(collection(db, ...tenantPath.split('/')), record);
+            const pathParts = tenantPath.split('/');
+            recordRef = await addDoc(collection(db, pathParts[0], ...pathParts.slice(1)), record);
         } catch {
             // Fallback to clinic-scoped path
-            recordRef = await addDoc(collection(db, ...clinicPath.split('/')), record);
+            const pathParts = clinicPath.split('/');
+            recordRef = await addDoc(collection(db, pathParts[0], ...pathParts.slice(1)), record);
         }
 
         return {

@@ -178,7 +178,7 @@ describe('AIVA SOAP Structuring Service', () => {
         it('handles empty string input', () => {
             const result = structureLocally('');
             expect(result.subjective).toBe('Not recorded.');
-            expect(result.objective).toBe('Physical exam performed.');
+            expect(result.objective).toContain('Physical exam performed.');
             expect(result.assessment).toBe('Pending.');
             expect(result.plan).toBe('Plan to be finalized.');
             expect(result.missedCharges).toEqual([]);

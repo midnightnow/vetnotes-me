@@ -46,4 +46,17 @@ export class KeyEscrowService {
         await this.getVaultKey(clinicId);
         return true;
     }
+
+    /**
+     * Get metadata about the clinic's key state.
+     */
+    static async getKeyInfo(clinicId: string) {
+        const exists = this.keys.has(clinicId);
+        return {
+            exists,
+            createdAt: Date.now(),
+            lastAccessedAt: Date.now(),
+            keyVersion: 1
+        };
+    }
 }

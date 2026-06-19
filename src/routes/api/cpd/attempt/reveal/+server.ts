@@ -59,17 +59,18 @@ export const POST = async ({ request, locals }: any) => {
     return json({
       session_type: 'VT',
       insight_text: secureData.insight_text || secureData.ai_report_raw || '',
-      reference_document_url: secureData.reference_document_url || null
+      reference_document_url: secureData.reference_document_url || null,
+      seeded_errors: []
     });
   }
 
   return json({
     session_type: 'IMAGING',
     ai_report_raw: secureData?.ai_report_raw,
-    seeded_errors: secureData?.seeded_errors?.map((err: any) => ({
+    seeded_errors: (secureData?.seeded_errors || []).map((err: any) => ({
       id: err.id,
       anatomical_zone: err.anatomical_zone,
       ai_claim: err.ai_claim
-    })) || []
+    }))
   });
 };
