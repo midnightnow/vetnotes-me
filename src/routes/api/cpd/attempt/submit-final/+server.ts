@@ -55,13 +55,34 @@ export const POST = async ({ request, locals }: any) => {
 
     const secureData = secureDataSnap.data() as CPDSecureCaseData;
 
+    const caseDoc = await transaction.get(adminDb.collection('cpd_cases').doc(attempt.case_id));
+    const caseData = caseDoc.data() as any;
+    const sessionType: string = caseData?.session_type || 'IMAGING';
+    const differential = attempt.user_reasoning?.primary_differential;
+
+    let comp3: number;
+    if (sessionType === 'VT') {
+      const keywords = CPD_SCORING_SPEC.COMP_3.gold_differential_keywords || [];
+      comp3 = keywords.length > 0
+        ? evaluatePatternRecognition(differential, keywords)
+        : 1.0;
+    } else {
+      comp3 = evaluatePatternRecognition(differential, CPD_SCORING_SPEC.COMP_3.gold_differential_keywords);
+    }
+
+    const seededErrors = secureData.seeded_errors || [];
+    const detectedSeededErrors = attempt.user_comparison?.detected_seeded_errors || [];
+    const comp5 = sessionType === 'VT'
+      ? 1.0
+      : evaluateErrorDetection(detectedSeededErrors, seededErrors);
+
     // 2. Compute Competency Scores
     const comp_scores: Record<CompetencyId, number> = {
       COMP_1: evaluateQuality(attempt.user_reasoning?.quality_assessment_notes),
       COMP_2: evaluateStructuredInterpretation(attempt.user_reasoning, CPD_SCORING_SPEC.COMP_2.required_fields),
-      COMP_3: evaluatePatternRecognition(attempt.user_reasoning?.primary_differential, CPD_SCORING_SPEC.COMP_3.gold_differential_keywords),
+      COMP_3: comp3,
       COMP_4: evaluateClinicalDecision(quiz_responses, secureData.quiz_answers),
-      COMP_5: evaluateErrorDetection(attempt.user_comparison?.detected_seeded_errors || [], secureData.seeded_errors)
+      COMP_5: comp5
     };
 
     const isPass = Object.values(comp_scores).every(score => score >= 0.70);
