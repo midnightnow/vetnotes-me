@@ -1,9 +1,73 @@
 <script lang="ts">
   import type { VetClinicalData } from '$lib/types/vet-format';
   import type { PageData } from './$types';
+  import { onMount } from 'svelte';
+  import { db } from '$lib/firebase';
+  import { doc, onSnapshot } from 'firebase/firestore';
 
-  export let data: PageData;
-  const patientContext: VetClinicalData = data.patientContext;
+  let { data }: { data: PageData } = $props();
+
+  // Make patientContext a reactive state variable in Svelte 5
+  let patientContext = $state<VetClinicalData>(data.patientContext);
+
+  // Keep state in sync with SSR page data loads
+  $effect(() => {
+    patientContext = data.patientContext;
+  });
+
+  onMount(() => {
+    const path = data.activePath;
+    if (!path) return;
+
+    const unsubscribe = onSnapshot(doc(db, path), (noteSnap) => {
+      if (noteSnap.exists()) {
+        const note = noteSnap.data() as Record<string, any>;
+
+        const exams = note?.clinical?.exams;
+        const flatContent = note?.content?.soap;
+        const soapData = exams?.[0]?.soap || flatContent || {};
+
+        const patients = note?.registry?.patients || [];
+        const patient = patients[0] || {};
+
+        const charges: string[] = [];
+        const finances = note?.clinical?.finances;
+        if (Array.isArray(finances?.lineItems)) {
+          charges.push(...finances.lineItems.map((item: any) => item.description || item.code).filter(Boolean));
+        } else if (Array.isArray(note?.billing?.lineItems)) {
+          charges.push(...note.billing.lineItems.map((item: any) => item.description || item.code).filter(Boolean));
+        }
+
+        patientContext = {
+          metadata: {
+            version: note?.version || '0.46.0',
+            timestamp: note?.metadata?.created_at
+              ? new Date(note.metadata.created_at).getTime()
+              : Date.now(),
+            origin: note?.metadata?.source === 'phone' || note?.metadata?.source === 'ambient' ? 'Aiva' : 'VetNotes',
+            clientApp: 'VetNotes Web',
+          },
+          patient: {
+            id: patient.patientId || patient.id || data.slug,
+            name: patient.name || 'Patient',
+            species: (patient.species || 'Canine').charAt(0).toUpperCase() + (patient.species || 'Canine').slice(1),
+            breed: patient.breed || 'Unknown',
+          },
+          soap: {
+            subjective: soapData.subjective || '',
+            objective: soapData.objective || '',
+            assessment: soapData.assessment || '',
+            plan: soapData.plan || '',
+          },
+          charges,
+        };
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  });
 </script>
 
 <div class="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
