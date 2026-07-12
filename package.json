@@ -15,6 +15,7 @@
     "deploy:vetcpd": "npm run build && firebase deploy -P pro --only hosting:vetcpd"
   },
   "devDependencies": {
+    "@sveltejs/adapter-node": "^5.5.7",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.49.1",
     "@sveltejs/vite-plugin-svelte": "^6.2.1",

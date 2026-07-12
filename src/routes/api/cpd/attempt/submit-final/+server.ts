@@ -1,6 +1,8 @@
 import { error, json } from '@sveltejs/kit';
 import { adminDb } from '$lib/server/firebase-admin';
 import { markCaseCompleted } from '$lib/server/cpd_attendance';
+import { hasCpdEntitlement } from '$lib/server/cpd_entitlement';
+import { issueCertificate } from '$lib/server/cpd_certificate';
 import { CPD_SCORING_SPEC, SCHEMA_VERSION } from '$lib/types/cpd_scoring_spec';
 import type { CPDAttempt, CPDSecureCaseData, CompetencyId } from '$lib/types/cpd';
 
@@ -111,45 +113,29 @@ export const POST = async ({ request, locals }: any) => {
       completed_at: new Date().toISOString()
     });
 
-    // 5. Generate Certificate if user passed
-    let certData = null;
-    if (isPass) {
-      const userSnap = await transaction.get(adminDb.collection('users').doc(userId));
-      const recipientName = userSnap.exists && userSnap.data()?.displayName
-        ? userSnap.data()!.displayName
-        : 'Veterinary Practitioner';
-
-      const certId = `cert_${userId}_${attempt.case_id}_v${attempt.attempt_version}`;
-      const caseDoc = await transaction.get(adminDb.collection('cpd_cases').doc(attempt.case_id));
-      const caseData = caseDoc.data() as any;
-      const moduleId = caseData?.module_id || 'mod_unknown';
-      const providerName = caseData?.provider_name || 'VetNotes Academy';
-      const providerCode = caseData?.provider_code || 'VN-2026-PRV';
-      const activityCode = caseData?.activity_code || caseId;
-      const hoursAwarded = caseData?.hours_awarded ?? 1.0;
-      const verificationBase = caseData?.verification_url || 'https://vetnotes.app/verify';
-
-      certData = {
-        id: certId,
-        user_id: userId,
-        module_id: moduleId,
-        recipient_name: recipientName,
-        provider_name: providerName,
-        provider_veted_code: providerCode,
-        activity_veted_code: activityCode,
-        hours_awarded: hoursAwarded,
-        schema_version: SCHEMA_VERSION,
-        issued_at: new Date().toISOString(),
-        verification_url: `${verificationBase}/${certId}`
-      };
-
-      transaction.set(adminDb.collection('cpd_certificates').doc(certId), certData);
-    }
-
-    return { competency_scores: comp_scores, passed: isPass, certificate: certData };
+    return { competency_scores: comp_scores, passed: isPass, attempt };
   });
 
-  return json({ success: true, ...result });
+  // Certificate issuance happens OUTSIDE the scoring transaction.
+  // Learning and scoring are free for everyone; the verifiable CPD
+  // certificate ("earn the hours") is gated on entitlement — pay to certify.
+  let certificate = null;
+  let paywall = null;
+  if (result.passed) {
+    if (await hasCpdEntitlement(userId)) {
+      certificate = await issueCertificate(userId, result.attempt as CPDAttempt);
+    } else {
+      paywall = { required: true, reason: 'certificate', checkout_path: '/api/cpd/checkout' };
+    }
+  }
+
+  return json({
+    success: true,
+    competency_scores: result.competency_scores,
+    passed: result.passed,
+    certificate,
+    paywall
+  });
 };
 
 // ==========================================

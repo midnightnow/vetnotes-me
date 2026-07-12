@@ -4,7 +4,7 @@
   import DicomViewer from '$lib/components/DicomViewer.svelte';
 
   // Data passed from SvelteKit load function (contains caseId and public case metadata)
-  export let data: { caseId: string; isLocked: boolean; sessionType: string; publicCase: any };
+  let { data }: { data: { caseId: string; isLocked: boolean; sessionType: string; publicCase: any } } = $props();
 
   let attempt: CPDAttempt | null = null;
   let currentStep: CPDStep = 'STEP_1_INTAKE';
@@ -32,6 +32,8 @@
   } | null = null;
   let certificateDetail: { verification_url?: string; provider_veted_code?: string; hours_awarded?: number } | null = null;
   let certificateError = '';
+  let paywallRequired = false;
+  let checkoutError = '';
 
   onMount(async () => {
     await initCpdAttempt();
@@ -187,8 +189,9 @@
         competency_scores: result.competency_scores,
         certificate: result.certificate
       };
-      
+
       currentStep = 'COMPLETED';
+      paywallRequired = !!result.paywall?.required;
       if (result.certificate) {
         await loadCertificateDetail(result.certificate);
       }
@@ -211,12 +214,46 @@
     try {
       const response = await fetch(`/api/cpd/attempt/${attempt.id}/certificate`);
       const result = await response.json();
+      if (response.status === 402 || result?.paywall?.required) {
+        paywallRequired = true;
+        return;
+      }
       if (!response.ok || !result.success) {
         throw new Error(result?.error || 'Unable to load certificate.');
       }
+      paywallRequired = false;
       certificateDetail = result.certificate;
+      evaluationResults = evaluationResults
+        ? { ...evaluationResults, certificate: result.certificate }
+        : evaluationResults;
     } catch (e: any) {
       certificateError = e?.message || 'Unable to load certificate.';
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  // Redirect to Stripe Checkout to unlock the verifiable CPD certificate.
+  async function startCpdCheckout() {
+    isLoading = true;
+    checkoutError = '';
+    try {
+      const res = await fetch('/api/cpd/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ return_path: `/cpd/cases/${data.caseId}` })
+      });
+      const result = await res.json();
+      if (res.status === 503 || result?.configured === false) {
+        checkoutError = 'CPD certification is launching soon — check back shortly.';
+        return;
+      }
+      if (!res.ok || !result?.url) {
+        throw new Error(result?.error || 'Unable to start checkout.');
+      }
+      window.location.href = result.url;
+    } catch (e: any) {
+      checkoutError = e?.message || 'Unable to start checkout.';
     } finally {
       isLoading = false;
     }
@@ -445,15 +482,32 @@
           </div>
 
           {#if evaluationResults.passed}
-            {#if evaluationResults.certificate}
-              <a href={evaluationResults.certificate.verification_url} class="btn btn-success" target="_blank">
+            {#if certificateDetail?.verification_url || evaluationResults.certificate}
+              <a
+                href={certificateDetail?.verification_url || evaluationResults.certificate?.verification_url}
+                class="btn btn-success"
+                target="_blank"
+              >
                 Download Verifiable CPD Certificate
               </a>
+            {:else if paywallRequired}
+              <div class="cpd-paywall">
+                <h4>🎓 You passed — unlock your verifiable certificate</h4>
+                <p>
+                  Your result is recorded. Purchase CPD certification to receive the accredited,
+                  verifiable certificate documenting your hours.
+                </p>
+                <button class="btn btn-primary" disabled={isLoading} on:click={startCpdCheckout}>
+                  {#if isLoading}Redirecting…{:else}Unlock Verifiable Certificate{/if}
+                </button>
+                {#if checkoutError}<p class="cpd-paywall-error">{checkoutError}</p>{/if}
+              </div>
             {:else}
               <button class="btn btn-primary" disabled={isLoading} on:click={claimCertificate}>
                 {#if isLoading}Verifying attempt...{:else}Claim Certificate{/if}
               </button>
             {/if}
+            {#if certificateError}<p class="cpd-paywall-error">{certificateError}</p>{/if}
           {/if}
         </div>
       {/if}
@@ -1024,5 +1078,29 @@
     text-decoration: none;
   }
   .btn-unlock:hover { background: #2563eb; }
+
+  .cpd-paywall {
+    margin-top: 1rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid #1d4ed8;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(37, 99, 235, 0.12), rgba(15, 23, 42, 0.4));
+  }
+  .cpd-paywall h4 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    color: #e2e8f0;
+  }
+  .cpd-paywall p {
+    margin: 0 0 1rem;
+    font-size: 0.85rem;
+    color: #94a3b8;
+    line-height: 1.5;
+  }
+  .cpd-paywall-error {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: #fca5a5;
+  }
 </style>
 {/if}

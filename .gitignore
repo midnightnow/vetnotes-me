@@ -27,3 +27,6 @@ vite.config.ts.timestamp-*
 vetcpd-dist/
 dist/
 
+
+# SSR (adapter-node) build output
+build-ssr/

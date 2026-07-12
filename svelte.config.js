@@ -1,5 +1,12 @@
-import adapter from '@sveltejs/adapter-static';
+import adapterStatic from '@sveltejs/adapter-static';
+import adapterNode from '@sveltejs/adapter-node';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+
+// SSR migration: `SSR_BUILD=1` builds a Node SSR server (into build-ssr) so the
+// server routes (CPD scoring, certificates, checkout, webhook) actually run.
+// Default build stays static so existing deploy scripts remain safe until the
+// SSR deploy path is validated on staging.
+const useSSR = process.env.SSR_BUILD === '1';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -8,12 +15,9 @@ const config = {
 	preprocess: vitePreprocess(),
 
 	kit: {
-		// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-		// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
-		adapter: adapter({
-			fallback: 'index.html'
-		}),
+		adapter: useSSR
+			? adapterNode({ out: 'build-ssr' })
+			: adapterStatic({ fallback: 'index.html' }),
 		prerender: {
 			handleHttpError: 'warn',
 			handleUnseenRoutes: 'ignore'
