@@ -62,18 +62,17 @@ export const POST = async ({ request, locals }: any) => {
     const sessionType: string = caseData?.session_type || 'IMAGING';
     const differential = attempt.user_reasoning?.primary_differential;
 
-    let comp3: number;
-    if (sessionType === 'VT') {
-      const keywords = CPD_SCORING_SPEC.COMP_3.gold_differential_keywords || [];
-      comp3 = keywords.length > 0
-        ? evaluatePatternRecognition(differential, keywords)
-        : 1.0;
-    } else {
-      const keywords = CPD_SCORING_SPEC.COMP_3.gold_differential_keywords || [];
-      comp3 = keywords.length > 0
-        ? evaluatePatternRecognition(differential, keywords)
-        : 1.0;
-    }
+    // Per-case gold differential keywords come from THIS case's secure reveal doc.
+    // Fall back to the global spec only if a case hasn't declared its own (legacy
+    // single-case behaviour). A case with no keywords scores COMP_3 as pass (the
+    // differential isn't the graded competency for that case — e.g. VT modules).
+    const goldKeywords: string[] =
+      (secureData as any).gold_differential_keywords ||
+      CPD_SCORING_SPEC.COMP_3.gold_differential_keywords ||
+      [];
+    const comp3 = sessionType === 'VT' || goldKeywords.length === 0
+      ? 1.0
+      : evaluatePatternRecognition(differential, goldKeywords);
 
     const seededErrors = secureData.seeded_errors || [];
     const detectedSeededErrors = attempt.user_comparison?.detected_seeded_errors || [];

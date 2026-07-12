@@ -37,11 +37,13 @@ export function buildCertificate(
   recipientName: string
 ): CPDCertificate {
   const certId = certIdFor(userId, attempt);
-  const providerName = caseData?.provider_name || 'VetNotes Academy';
-  const providerCode = caseData?.provider_code || 'VN-2026-PRV';
+  const providerName = caseData?.provider_name || 'VetNotes CPD';
+  const providerCode = caseData?.provider_code || 'VN-CPD-2026';
   const activityCode = caseData?.activity_code || attempt.case_id;
-  const hoursAwarded = caseData?.hours_awarded ?? 1.0;
-  const verificationBase = caseData?.verification_url || 'https://vetnotes.app/verify';
+  // Single source of truth for hours: the case's own `hours` field (the value the
+  // learner saw). `hours_awarded` kept as a legacy fallback; 1.0 is a last resort.
+  const hoursAwarded = caseData?.hours ?? caseData?.hours_awarded ?? 1.0;
+  const verificationBase = caseData?.verification_url || 'https://vetnotes.me/verify';
 
   return {
     id: certId,
