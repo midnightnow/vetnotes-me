@@ -66,33 +66,17 @@ export const load: PageLoad = async ({ params }) => {
                 charges,
             };
 
-            return { patientContext, activePath, slug };
+            return { patientContext, pending: false, activePath, slug };
         }
     } catch (err) {
         console.warn('[VetNotes] .vet load failed for path:', activePath, err);
     }
 
-    const patientContext: VetClinicalData = {
-        metadata: {
-            version: '0.46.0',
-            timestamp: Date.now(),
-            origin: 'VetNotes',
-            clientApp: 'VetNotes Web',
-        },
-        patient: {
-            id: slug.slice(0, 8),
-            name: 'Patient',
-            species: 'Canine',
-            breed: 'Unknown',
-        },
-        soap: {
-            subjective: 'Clinical record not yet available.',
-            objective: '',
-            assessment: '',
-            plan: '',
-        },
-        charges: [],
-    };
-
-    return { patientContext, activePath, slug };
+    // No clinical note exists for this slug yet. Do NOT fabricate a synthetic
+    // patient — that silently masqueraded an empty session as a real record
+    // (species "Canine", breed "Unknown", id = slug.slice(0,8)). Instead return
+    // an explicit pending state so the page can honestly show "visit not started
+    // yet". The page's live onSnapshot subscription will populate the real record
+    // the moment the scribe (Aiva/VetNotes) writes it to activePath.
+    return { patientContext: null, pending: true, activePath, slug };
 };

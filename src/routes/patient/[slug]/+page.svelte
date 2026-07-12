@@ -7,12 +7,15 @@
 
   let { data }: { data: PageData } = $props();
 
-  // Make patientContext a reactive state variable in Svelte 5
-  let patientContext = $state<VetClinicalData>(data.patientContext);
+  // Make patientContext a reactive state variable in Svelte 5.
+  // Null when no clinical note exists yet (pending pre-visit state).
+  let patientContext = $state<VetClinicalData | null>(data.patientContext);
+  let pending = $state<boolean>(data.pending);
 
   // Keep state in sync with SSR page data loads
   $effect(() => {
     patientContext = data.patientContext;
+    pending = data.pending;
   });
 
   onMount(() => {
@@ -61,7 +64,13 @@
           },
           charges,
         };
+        pending = false;
       }
+    }, (err) => {
+      // Unauthenticated / cross-tenant reads are denied by Firestore rules.
+      // Don't let the listener throw uncaught — just remain in the pending
+      // pre-visit state (the record simply isn't visible to this viewer).
+      console.warn('[VetNotes] patient snapshot listener stopped:', err?.code || err);
     });
 
     return () => {
@@ -80,6 +89,7 @@
     </div>
 
     <div class="p-8">
+      {#if patientContext && !pending}
         <!-- Patient Info -->
         <div class="mb-10 text-center">
             <h2 class="text-3xl font-bold text-gray-900 mb-2">
@@ -136,6 +146,21 @@
                 Timestamp: {new Date(patientContext.metadata.timestamp).toLocaleString()} • Version: {patientContext.metadata.version}
             </p>
         </div>
+      {:else}
+        <!-- Pending pre-visit state: no clinical note exists for this slug yet.
+             The live onSnapshot subscription above will replace this with the real
+             record the moment the visit is scribed. -->
+        <div class="py-16 text-center">
+            <div class="mx-auto mb-6 h-12 w-12 rounded-full border-4 border-blue-100 border-t-blue-500 animate-spin"></div>
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">Visit not started yet</h2>
+            <p class="text-gray-500 max-w-md mx-auto">
+                This appointment is booked, but the clinical consultation hasn't been
+                recorded yet. This page will update automatically the moment your vet
+                completes the visit.
+            </p>
+            <p class="text-[10px] text-gray-300 mt-8 font-mono break-all">Ref: {data.slug}</p>
+        </div>
+      {/if}
     </div>
   </div>
 </div>
