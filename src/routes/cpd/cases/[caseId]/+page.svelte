@@ -6,34 +6,36 @@
   // Data passed from SvelteKit load function (contains caseId and public case metadata)
   let { data }: { data: { caseId: string; isLocked: boolean; sessionType: string; publicCase: any } } = $props();
 
-  let attempt: CPDAttempt | null = null;
-  let currentStep: CPDStep = 'STEP_1_INTAKE';
-  let isLoading = false;
-  let errorMessage = '';
+  // This component is in runes mode ($props above), so mutable UI state MUST use
+  // $state — plain `let` is non-reactive here and the step UI would never update.
+  let attempt: CPDAttempt | null = $state(null);
+  let currentStep: CPDStep = $state('STEP_1_INTAKE');
+  let isLoading = $state(false);
+  let errorMessage = $state('');
 
   // Step 2: Human Reasoning input fields
-  let qualityNotes = '';
-  let abnormalitiesNotes = '';
-  let differentialNotes = '';
+  let qualityNotes = $state('');
+  let abnormalitiesNotes = $state('');
+  let differentialNotes = $state('');
 
   // Step 3 & 4: Secure AI Reveal payload
-  let aiReportRaw = '';
-  let seededErrors: Array<{ id: string; anatomical_zone: string; ai_claim: string }> = [];
-  let userDetections: Record<string, { detected: boolean; notes: string }> = {};
+  let aiReportRaw = $state('');
+  let seededErrors: Array<{ id: string; anatomical_zone: string; ai_claim: string }> = $state([]);
+  let userDetections: Record<string, { detected: boolean; notes: string }> = $state({});
 
   // Step 5: Quiz responses
-  let quizResponses: Record<string, number> = {};
+  let quizResponses: Record<string, number> = $state({});
 
   // Completed State: Grading & Credentials
   let evaluationResults: {
     passed: boolean;
     competency_scores: Record<CompetencyId, number>;
     certificate?: { id: string; verification_url: string };
-  } | null = null;
-  let certificateDetail: { verification_url?: string; provider_veted_code?: string; hours_awarded?: number } | null = null;
-  let certificateError = '';
-  let paywallRequired = false;
-  let checkoutError = '';
+  } | null = $state(null);
+  let certificateDetail: { verification_url?: string; provider_veted_code?: string; hours_awarded?: number } | null = $state(null);
+  let certificateError = $state('');
+  let paywallRequired = $state(false);
+  let checkoutError = $state('');
 
   onMount(async () => {
     await initCpdAttempt();

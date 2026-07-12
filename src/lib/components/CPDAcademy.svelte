@@ -1,33 +1,43 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { CPDAttendance, CPDSession } from '$lib/types/cpd';
-  import { adminDb } from '$lib/server/firebase-admin';
+  import { db } from '$lib/firebase';
+  import { user } from '$lib/stores/auth';
+  import { collection, getDocs, query, where } from 'firebase/firestore';
 
   let attendance: CPDAttendance[] = $state([]);
   let sessions: CPDSession[] = $state([]);
   let loading = $state(true);
 
-  onMount(async () => {
+  async function loadCatalog(uid: string) {
     try {
+      // Attendance MUST be scoped to the current user — an unscoped collection read
+      // both leaks other practitioners' records and is denied by the read-own rule.
       const [attendanceSnap, sessionsSnap] = await Promise.all([
-        adminDb.collection('cpd_attendance').get(),
-        adminDb.collection('cpd_sessions').orderBy('created_at', 'desc').get(),
+        getDocs(query(collection(db, 'cpd_attendance'), where('user_id', '==', uid))),
+        // No orderBy: sessions don't carry created_at, and orderBy would silently
+        // exclude every session that lacks the field (i.e. all of them). Sort client-side.
+        getDocs(collection(db, 'cpd_sessions')),
       ]);
 
-      attendance = attendanceSnap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as CPDAttendance[];
-
-      sessions = sessionsSnap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as CPDSession[];
+      attendance = attendanceSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as CPDAttendance[];
+      sessions = (sessionsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as CPDSession[]).sort(
+        (a, b) => (a.title || '').localeCompare(b.title || '')
+      );
     } catch (err) {
       console.error('Failed to fetch CPD catalog', err);
     } finally {
       loading = false;
     }
+  }
+
+  onMount(() => {
+    // Wait for Firebase client auth to resolve before reading (the read-own rules
+    // need request.auth). The /cpd layout already gates access, so a user arrives.
+    const unsub = user.subscribe((u) => {
+      if (u && loading) loadCatalog(u.uid);
+    });
+    return unsub;
   });
 
   function getHours(session: CPDSession) {
@@ -60,7 +70,7 @@
 <div class="max-w-6xl mx-auto px-4 py-12">
   <header class="mb-12">
     <h1 class="text-4xl font-extrabold text-white mb-4">VetNotes <span class="text-blue-500">CPD Academy</span></h1>
-    <p class="text-xl text-white/60">Verifiable Clinical Competency Modules for Modern Practitioners.</p>
+    <p class="text-xl text-white/60">Case-based, self-directed CPD modules for modern practitioners.</p>
   </header>
 
   {#if loading}
