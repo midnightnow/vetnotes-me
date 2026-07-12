@@ -152,11 +152,11 @@
              record the moment the visit is scribed. -->
         <div class="py-16 text-center">
             <div class="mx-auto mb-6 h-12 w-12 rounded-full border-4 border-blue-100 border-t-blue-500 animate-spin"></div>
-            <h2 class="text-2xl font-bold text-gray-900 mb-2">Visit not started yet</h2>
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">No record to show yet</h2>
             <p class="text-gray-500 max-w-md mx-auto">
-                This appointment is booked, but the clinical consultation hasn't been
-                recorded yet. This page will update automatically the moment your vet
-                completes the visit.
+                There's no clinical record on this page yet. Once the visit has been
+                written up it will appear here. If you're clinic staff, make sure
+                you're signed in to your clinic to view it.
             </p>
             <p class="text-[10px] text-gray-300 mt-8 font-mono break-all">Ref: {data.slug}</p>
         </div>
