@@ -1,0 +1,15 @@
+node_modules
+build
+build-ssr
+.svelte-kit
+.firebase
+.git
+.env
+.env.*
+# .env.production carries ONLY the public Firebase web config (VITE_FIREBASE_API_KEY,
+# public by design) — required at vite build time or the client bundle ships with
+# auth/invalid-api-key. Secrets (VITE_GEMINI_API_KEY in .env) stay excluded.
+!.env.production
+npm-debug.log
+*.log
+functions/node_modules

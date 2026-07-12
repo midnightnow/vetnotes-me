@@ -17,6 +17,10 @@ Thumbs.db
 .env.*
 !.env.example
 !.env.test
+# Public Firebase web config only (VITE_FIREBASE_API_KEY — public by design).
+# Committed so local and container builds both bake a working client bundle.
+# Real secrets (VITE_GEMINI_API_KEY) stay in .env, which remains ignored.
+!.env.production
 
 # Vite
 vite.config.js.timestamp-*

@@ -16,7 +16,7 @@
     },
     "vetnotes-mvp": {
       "hosting": {
-        "production": [
+        "ssr": [
           "vetnotes-mvp"
         ]
       }

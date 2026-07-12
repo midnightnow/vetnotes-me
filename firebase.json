@@ -50,6 +50,24 @@
       ]
     },
     {
+      "target": "ssr",
+      "public": "ssr-public",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "run": {
+            "serviceId": "vetnotes-cpd-ssr",
+            "region": "australia-southeast1"
+          }
+        }
+      ]
+    },
+    {
       "target": "vetcpd",
       "public": "vetcpd-dist",
       "ignore": [
