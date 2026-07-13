@@ -14,7 +14,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import crypto from 'node:crypto';
-import { grantCpdEntitlement } from '$lib/server/cpd_entitlement';
+import { grantCpdEntitlement, revokeCpdEntitlement } from '$lib/server/cpd_entitlement';
 
 const TOLERANCE_SECONDS = 300;
 
@@ -48,16 +48,29 @@ export const POST: RequestHandler = async ({ request }) => {
   }
 
   const event = JSON.parse(payload);
+  const CPD_PRODUCTS = new Set(['cpd_pass', 'cpd_certification']); // '..._certification' = back-compat
+
   if (event.type === 'checkout.session.completed') {
     const session = event.data?.object || {};
     const userId = session.client_reference_id || session.metadata?.user_id;
-    const product = session.metadata?.product;
-    if (userId && product === 'cpd_certification') {
+    if (userId && CPD_PRODUCTS.has(session.metadata?.product)) {
       await grantCpdEntitlement(userId, {
         source: 'stripe_checkout',
+        plan: session.metadata?.plan || 'all_access',
+        // One-off pass = lifetime (no expiry). Subscription passes are kept alive
+        // by renewal invoices and revoked on subscription.deleted (below).
+        expiresAt: null,
         stripeSessionId: session.id,
+        stripeCustomerId: session.customer,
         email: session.customer_details?.email || session.customer_email
       });
+    }
+  } else if (event.type === 'customer.subscription.deleted') {
+    // Recurring CPD Pass cancelled/ended -> revoke access.
+    const sub = event.data?.object || {};
+    const userId = sub.metadata?.user_id;
+    if (userId && CPD_PRODUCTS.has(sub.metadata?.product)) {
+      await revokeCpdEntitlement(userId, 'subscription_deleted');
     }
   }
 

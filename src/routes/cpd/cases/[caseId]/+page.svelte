@@ -494,13 +494,14 @@
               </a>
             {:else if paywallRequired}
               <div class="cpd-paywall">
-                <h4>🎓 You passed — unlock your verifiable certificate</h4>
+                <h4>🎓 You passed — get your CPD Pass</h4>
                 <p>
-                  Your result is recorded. Purchase CPD certification to receive the accredited,
-                  verifiable certificate documenting your hours.
+                  Your result is recorded. The VetNotes CPD Pass unlocks the verifiable
+                  completion certificate for this case <em>and every other</em> — one purchase,
+                  all cases. (Self-directed CPD record, not an accredited award.)
                 </p>
                 <button class="btn btn-primary" disabled={isLoading} on:click={startCpdCheckout}>
-                  {#if isLoading}Redirecting…{:else}Unlock Verifiable Certificate{/if}
+                  {#if isLoading}Redirecting…{:else}Get the CPD Pass{/if}
                 </button>
                 {#if checkoutError}<p class="cpd-paywall-error">{checkoutError}</p>{/if}
               </div>

@@ -37,13 +37,20 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
   const returnPath = typeof body.return_path === 'string' && body.return_path.startsWith('/') ? body.return_path : '/cpd';
   const mode = env.CPD_CHECKOUT_MODE === 'subscription' ? 'subscription' : 'payment';
 
+  // All-access CPD Pass: one purchase unlocks certificates on every case.
   const form = new URLSearchParams();
   form.set('mode', mode);
   form.set('line_items[0][price]', priceId);
   form.set('line_items[0][quantity]', '1');
   form.set('client_reference_id', locals.user.uid);
   form.set('metadata[user_id]', locals.user.uid);
-  form.set('metadata[product]', 'cpd_certification');
+  form.set('metadata[product]', 'cpd_pass');
+  form.set('metadata[plan]', 'all_access');
+  // Propagate metadata onto the subscription too, so renewal/cancel events map back.
+  if (mode === 'subscription') {
+    form.set('subscription_data[metadata][user_id]', locals.user.uid);
+    form.set('subscription_data[metadata][product]', 'cpd_pass');
+  }
   if (locals.user.email) form.set('customer_email', locals.user.email);
   form.set('success_url', `${url.origin}${returnPath}?cpd_paid=1`);
   form.set('cancel_url', `${url.origin}${returnPath}?cpd_cancelled=1`);
