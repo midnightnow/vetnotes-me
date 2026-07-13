@@ -1,9 +1,13 @@
 import { error, json } from '@sveltejs/kit';
 import { adminDb } from '$lib/server/firebase-admin';
 import { trackAttendancePing } from '$lib/server/cpd_attendance';
+import { CpdGovernor } from '$lib/server/cpd_governor';
 import type { CPDAttempt } from '$lib/types/cpd';
 
-const MINIMUM_TIME_BEFORE_REVEAL_SECONDS = 120; // 2 minutes for IMAGING sessions
+// Minimum engagement before the expert answer is revealed. Radiology cases demand
+// real inspection time; reflective (VT) cases still require genuine engagement, so
+// they can't be instant-cleared (was previously ungated for VT).
+const MIN_REVEAL_SECONDS: Record<string, number> = { IMAGING: 120, VT: 45 };
 
 export const POST = async ({ request, locals }: any) => {
   const userId = locals.user?.uid;
@@ -29,12 +33,10 @@ export const POST = async ({ request, locals }: any) => {
   const caseData = caseSnap.data() || {};
   const sessionType: string = caseData.session_type || 'IMAGING';
 
-  if (sessionType === 'IMAGING') {
-    const startTime = new Date(attempt.started_at).getTime();
-    const elapsedSeconds = (Date.now() - startTime) / 1000;
-    if (elapsedSeconds < MINIMUM_TIME_BEFORE_REVEAL_SECONDS) {
-      throw error(400, 'Please spend more time analyzing the radiographic views before revealing the AI assistant.');
-    }
+  const minSeconds = MIN_REVEAL_SECONDS[sessionType] ?? MIN_REVEAL_SECONDS.IMAGING;
+  const elapsedSeconds = (Date.now() - new Date(attempt.started_at).getTime()) / 1000;
+  if (elapsedSeconds < minSeconds) {
+    throw error(400, 'Please spend more time reviewing this case before revealing the expert report.');
   }
 
   const secureDataSnap = await adminDb
@@ -53,6 +55,10 @@ export const POST = async ({ request, locals }: any) => {
   await attemptRef.update({
     current_step: 'STEP_3_REVEAL',
     ai_revealed_at: aiRevealedAt
+  });
+
+  await CpdGovernor.safeLog(adminDb, attempt.id, userId, attempt.case_id, attempt.attempt_version, 'CPD_EVENT:AI:REVEALED', {
+    inspection_seconds: Math.round(elapsedSeconds)
   });
 
   if (sessionType === 'VT') {

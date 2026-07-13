@@ -1,6 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { adminDb } from '$lib/server/firebase-admin';
 import { trackAttendancePing } from '$lib/server/cpd_attendance';
+import { CpdGovernor } from '$lib/server/cpd_governor';
 import type { CPDAttempt } from '$lib/types/cpd';
 
 export const POST = async ({ request, locals }: any) => {
@@ -35,6 +36,8 @@ export const POST = async ({ request, locals }: any) => {
     current_step: 'STEP_2_REASONING',
     user_reasoning: user_reasoning
   });
+
+  await CpdGovernor.safeLog(adminDb, attempt.id, userId, attempt.case_id, attempt.attempt_version, 'CPD_EVENT:REASONING:SUBMITTED', {});
 
   return json({ success: true, next_step: 'STEP_2_REASONING' });
 };

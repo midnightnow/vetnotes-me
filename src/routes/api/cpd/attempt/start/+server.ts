@@ -1,7 +1,12 @@
 import { error, json } from '@sveltejs/kit';
 import { adminDb } from '$lib/server/firebase-admin';
 import { trackAttendancePing } from '$lib/server/cpd_attendance';
+import { CpdGovernor } from '$lib/server/cpd_governor';
 import type { CPDAttempt } from '$lib/types/cpd';
+
+// Integrity guard: CPD is formative (learn-then-retry), but a paid competency
+// record can't be brute-forced infinitely. Cap attempts and stop once passed.
+const MAX_ATTEMPTS = 5;
 
 export const POST = async ({ request, locals }: any) => {
   // Ensure user is authenticated
@@ -33,6 +38,21 @@ export const POST = async ({ request, locals }: any) => {
   if (!existingAttemptsQuery.empty) {
     const latestAttempt = existingAttemptsQuery.docs[0].data() as CPDAttempt;
     nextVersion = latestAttempt.attempt_version + 1;
+
+    // Pass-block: if a prior attempt already passed, no further attempts (index-free —
+    // score ids are deterministic). Prevents re-farming a passed competency.
+    const priorScore = await adminDb
+      .collection('cpd_scores')
+      .doc(`score_${latestAttempt.id}`)
+      .get();
+    if (priorScore.exists && priorScore.data()?.is_overall_pass === true) {
+      throw error(409, 'You have already passed this case. No further attempts are needed.');
+    }
+
+    // Cap total attempts.
+    if (nextVersion > MAX_ATTEMPTS) {
+      throw error(429, `Maximum attempts (${MAX_ATTEMPTS}) reached for this case.`);
+    }
   }
 
   // 2. Initialize CPDAttempt
@@ -47,6 +67,11 @@ export const POST = async ({ request, locals }: any) => {
   };
 
   await attemptsRef.doc(attemptId).set(newAttempt);
+
+  // Tamper-evident audit ledger (non-blocking).
+  await CpdGovernor.safeLog(adminDb, attemptId, userId, caseId, nextVersion, 'CPD_EVENT:ATTEMPT:STARTED', {
+    started_at: newAttempt.started_at
+  });
 
   return json({ attempt: newAttempt });
 };

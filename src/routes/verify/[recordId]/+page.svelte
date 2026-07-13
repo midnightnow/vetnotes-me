@@ -26,6 +26,11 @@
         <dt>Verification ID</dt>
         <dd class="mono">{data.recordId}</dd>
       </dl>
+      {#if data.audit && data.audit.events > 0}
+        <p class="audit" class:broken={!data.audit.chainIntact}>
+          {#if data.audit.chainIntact}🔒 Backed by {data.audit.events} tamper-evident audit events — hash chain verified{:else}⚠ Audit chain integrity check failed — contact the issuer{/if}
+        </p>
+      {/if}
       <p class="note">
         This confirms a self-directed CPD completion record held by VetNotes CPD. It is a
         record of self-directed activity, not an accredited award.
@@ -81,4 +86,6 @@
   dd { margin: 0; font-size: 1.05rem; font-weight: 600; color: #0f172a; }
   .mono { font-family: ui-monospace, monospace; font-size: 0.8rem; font-weight: 500; word-break: break-all; }
   .note { font-size: 0.8rem; color: #64748b; line-height: 1.5; }
+  .audit { font-size: 0.8rem; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.6rem 0.8rem; margin: 0 0 1rem; }
+  .audit.broken { color: #991b1b; background: #fef2f2; border-color: #fecaca; }
 </style>

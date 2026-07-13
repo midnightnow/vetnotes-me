@@ -3,6 +3,7 @@ import { adminDb } from '$lib/server/firebase-admin';
 import { markCaseCompleted } from '$lib/server/cpd_attendance';
 import { hasCpdEntitlement } from '$lib/server/cpd_entitlement';
 import { issueCertificate } from '$lib/server/cpd_certificate';
+import { CpdGovernor } from '$lib/server/cpd_governor';
 import { CPD_SCORING_SPEC, SCHEMA_VERSION } from '$lib/types/cpd_scoring_spec';
 import type { CPDAttempt, CPDSecureCaseData, CompetencyId } from '$lib/types/cpd';
 
@@ -118,11 +119,20 @@ export const POST = async ({ request, locals }: any) => {
   // Certificate issuance happens OUTSIDE the scoring transaction.
   // Learning and scoring are free for everyone; the verifiable CPD
   // certificate ("earn the hours") is gated on entitlement — pay to certify.
+  const gradedAttempt = result.attempt as CPDAttempt;
+  await CpdGovernor.safeLog(adminDb, gradedAttempt.id, userId, gradedAttempt.case_id, gradedAttempt.attempt_version, 'CPD_EVENT:ASSESSMENT:COMPLETED', {
+    passed: result.passed,
+    competency_scores: result.competency_scores
+  });
+
   let certificate = null;
   let paywall = null;
   if (result.passed) {
     if (await hasCpdEntitlement(userId)) {
-      certificate = await issueCertificate(userId, result.attempt as CPDAttempt);
+      certificate = await issueCertificate(userId, gradedAttempt);
+      await CpdGovernor.safeLog(adminDb, gradedAttempt.id, userId, gradedAttempt.case_id, gradedAttempt.attempt_version, 'CPD_EVENT:CREDENTIAL:ISSUED', {
+        certificate_id: certificate?.id
+      });
     } else {
       paywall = { required: true, reason: 'certificate', checkout_path: '/api/cpd/checkout' };
     }
