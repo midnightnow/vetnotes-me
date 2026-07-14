@@ -70,27 +70,27 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #020617;
+    background: var(--t-bg, #020617);
     padding: 1rem;
   }
   .login-card {
-    background: #0f172a;
-    border: 1px solid rgba(255,255,255,0.1);
+    background: var(--t-surface, #0f172a);
+    border: 1px solid var(--t-border, rgba(255,255,255,0.1));
     padding: 2.5rem;
     border-radius: 2rem;
     max-width: 400px;
     width: 100%;
     text-align: center;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--t-panel-shadow, 0 25px 50px -12px rgba(0, 0, 0, 0.5));
   }
   .logo h2 {
     font-size: 1.5rem;
     font-weight: 800;
-    color: white;
+    color: var(--t-ink, white);
     margin-bottom: 0.5rem;
   }
   .logo p {
-    color: #94a3b8;
+    color: var(--t-muted, #94a3b8);
     font-size: 0.9rem;
     margin-bottom: 2rem;
     line-height: 1.5;
@@ -104,7 +104,7 @@
     background: white;
     color: #1e293b;
     padding: 0.75rem;
-    border: none;
+    border: 1px solid var(--t-border, transparent);
     border-radius: 0.75rem;
     font-weight: 600;
     font-size: 0.95rem;

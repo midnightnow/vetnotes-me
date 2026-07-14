@@ -3,6 +3,7 @@
     import GlobalNav from "$lib/components/GlobalNav.svelte";
     import SupportChat from "$lib/components/SupportChat.svelte";
     import { page } from "$app/stores";
+    import { theme } from "$lib/stores/theme";
     import { initAuth } from "$lib/stores/auth";
     import { initAuthListener } from "$lib/auth";
     import { onMount } from "svelte";
@@ -19,7 +20,7 @@
     });
 </script>
 
-<div class="relative min-h-screen">
+<div class="relative min-h-screen {$theme === 'nightshift' ? 'nightshift' : 'daylight'}">
     {#if $page.url.pathname !== "/"}
         <GlobalNav />
     {/if}

@@ -15,6 +15,11 @@ export const theme = writable<ThemeName>(initial());
 theme.subscribe((value) => {
     if (typeof window !== "undefined") {
         localStorage.setItem(STORAGE_KEY, value);
+        if (value === "nightshift") {
+            document.documentElement.dataset.theme = "nightshift";
+        } else {
+            delete document.documentElement.dataset.theme;
+        }
     }
 });
 
