@@ -27,6 +27,12 @@
     import { isPro } from "$lib/stores/clinic";
     import { theme, THEMES } from "$lib/stores/theme";
     import { decodePayload } from "$lib/utils/encoding";
+    import {
+        saveDraft,
+        loadDraft,
+        clearDraft,
+        purgeLegacyDraft,
+    } from "$lib/utils/draftStorage";
     import { fade, slide } from "svelte/transition";
 
     let isRecording = false;
@@ -58,8 +64,8 @@
     let billingItems: any[] = [];
     volatileBillingTray.subscribe((items) => (billingItems = items));
 
-    // ── Draft persistence — an in-progress note must survive a reload ──
-    const DRAFT_KEY = "vetnotes_draft";
+    // ── Draft persistence (tab-scoped sessionStorage, PHI-safe) ──
+    // See src/lib/utils/draftStorage.ts for the storage/TTL rationale.
     const UPGRADE_URL =
         "https://vetsorcery.com/pricing?utm_source=vetnotes&utm_medium=app&utm_campaign=upgrade_cta";
     let draftReady = false; // guard: don't persist until restore has run
@@ -67,40 +73,26 @@
     let draftTimer: any = null;
 
     function persistDraft(raw: string, structured: string) {
-        if (!draftReady || typeof window === "undefined") return;
+        if (!draftReady) return;
         if (draftTimer) clearTimeout(draftTimer);
-        draftTimer = setTimeout(() => {
-            if (raw.trim() || structured.trim()) {
-                localStorage.setItem(
-                    DRAFT_KEY,
-                    JSON.stringify({ raw, structured, template: selectedTemplate, ts: Date.now() }),
-                );
-            } else {
-                localStorage.removeItem(DRAFT_KEY);
-            }
-        }, 600);
+        draftTimer = setTimeout(() => saveDraft(raw, structured, selectedTemplate), 600);
     }
     $: persistDraft(rawTranscript, transcript);
 
     function restoreDraft() {
-        try {
-            const stored = localStorage.getItem(DRAFT_KEY);
-            if (!stored) return;
-            const draft = JSON.parse(stored);
-            if (!rawTranscript.trim() && !transcript.trim() && (draft.raw?.trim() || draft.structured?.trim())) {
-                rawTranscript = draft.raw || "";
-                transcript = draft.structured || "";
-                if (draft.template) selectedTemplate = draft.template;
-                draftRestored = true;
-                status = "Draft restored from your last session";
-            }
-        } catch (e) {
-            console.error("Draft restore failed:", e);
+        purgeLegacyDraft(); // remove any unredacted draft a prior build left in localStorage
+        const draft = loadDraft();
+        if (draft && !rawTranscript.trim() && !transcript.trim()) {
+            rawTranscript = draft.raw || "";
+            transcript = draft.structured || "";
+            if (draft.template) selectedTemplate = draft.template;
+            draftRestored = true;
+            status = "Draft restored from your last session";
         }
     }
 
     function discardDraft() {
-        localStorage.removeItem(DRAFT_KEY);
+        clearDraft();
         draftRestored = false;
         clearWorkspace();
     }
@@ -345,7 +337,7 @@
         status = "Ready for Consult";
         draftRestored = false;
         volatileBillingTray.clear();
-        if (typeof window !== "undefined") localStorage.removeItem(DRAFT_KEY);
+        clearDraft();
     }
 
     function confirmClearWorkspace() {
@@ -511,11 +503,11 @@
                         </div>
                         <div class="flex items-center space-x-2 text-xs text-white/60">
                             <span class="text-green-500">✓</span>
-                            <span>Zero data retention</span>
+                            <span>No cloud data retention</span>
                         </div>
                         <div class="flex items-center space-x-2 text-xs text-white/60">
                             <span class="text-green-500">✓</span>
-                            <span>PII redaction active</span>
+                            <span>PII redaction before cloud AI</span>
                         </div>
                         {#if $isAuthenticated}
                             <div class="flex items-center space-x-2 text-xs text-white/60">
