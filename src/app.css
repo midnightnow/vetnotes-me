@@ -5,8 +5,14 @@
 /*
  * Design tokens — sourced from @aiva/tokens (canonical single source of truth).
  * Do not re-declare --aiva-* or --vet-* variables in this file.
+ * Path is relative to this file (apps/vetnotes-me/src): ../../ reaches apps/,
+ * then into the colocated vetsorcery-core repo. (Was ../../../../ — overshot two
+ * levels to a nonexistent /Users/…/WORK/vetsorcery-core, so the canonical tokens
+ * — incl. the daylight/nightshift [data-theme] blocks — never loaded.)
+ * Cross-repo relative import works because these repos are colocated under apps/
+ * (see VET/REPO_MANIFEST.md §1); a fresh standalone clone would need a sync copy.
  */
-@import '../../../../vetsorcery-core/packages/aiva-tokens/src/tokens.css';
+@import '../../vetsorcery-core/packages/aiva-tokens/src/tokens.css';
 
 @layer base {
     :root {
