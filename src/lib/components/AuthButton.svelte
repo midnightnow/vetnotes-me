@@ -10,7 +10,11 @@
         try {
             await signInWithGoogle();
         } catch (e: any) {
-            error = e.message || 'Sign-in failed';
+            const code = e?.code || '';
+            error = code === 'auth/popup-closed-by-user' ? 'Sign-in cancelled.'
+                : code === 'auth/popup-blocked' ? 'Your browser blocked the sign-in window — allow popups and try again.'
+                : code === 'auth/network-request-failed' ? 'Network problem — check your connection and try again.'
+                : 'Sign-in failed — please try again.';
         } finally {
             isSigningIn = false;
         }
@@ -46,9 +50,9 @@
         </div>
         <button
             on:click={handleSignOut}
-            class="text-[10px] text-white/30 hover:text-white/60 transition-colors uppercase tracking-widest font-bold"
+            class="text-xs text-white/40 hover:text-white/60 transition-colors font-semibold"
         >
-            Sign Out
+            Sign out
         </button>
     </div>
 {:else}
@@ -66,6 +70,6 @@
         <span>{isSigningIn ? 'Signing in...' : 'Sign in with Google'}</span>
     </button>
     {#if error}
-        <p class="text-[10px] text-red-400 mt-1">{error}</p>
+        <p class="text-xs text-red-400 mt-1">{error}</p>
     {/if}
 {/if}

@@ -182,7 +182,7 @@
                 }, 1000);
             } catch (err) {
                 console.error("Mic error:", err);
-                status = "Microphone access error";
+                status = "Microphone blocked — allow mic access in your browser";
             }
         } else {
             if (mediaRecorder) {
@@ -340,6 +340,8 @@
     <title>VetNotes | Clinical Workflow</title>
 </svelte:head>
 
+<svelte:window on:keydown={(e) => { if (e.key === "Escape" && showSettings) showSettings = false; }} />
+
 <div class="daylight">
 <div class="max-w-6xl mx-auto px-6 py-8">
     <header class="flex justify-between items-center mb-8 border-b border-white/5 pb-6">
@@ -367,30 +369,35 @@
     </header>
 
     {#if showSettings}
-        <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
-            <div class="bg-gray-900 border border-white/10 p-8 rounded-2xl w-full max-w-md shadow-2xl relative">
-                <button class="absolute top-4 right-4 text-white/40 hover:text-white" on:click={() => (showSettings = false)}>
+        <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+        <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center" on:click|self={() => (showSettings = false)}>
+            <div class="bg-gray-900 border border-white/10 p-8 rounded-2xl w-full max-w-md shadow-2xl relative" role="dialog" aria-modal="true" aria-label="AI settings">
+                <button class="absolute top-4 right-4 text-white/40 hover:text-white" aria-label="Close settings" on:click={() => (showSettings = false)}>
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
-                <h2 class="text-xl font-bold mb-4">AIVA Configuration</h2>
+                <h2 class="text-xl font-bold mb-4">AI settings</h2>
                 <p class="text-xs text-white/40 mb-6 leading-relaxed">
-                    Enter your AIVA API Key to enable premium cloud-based SOAP structuring.
+                    Cloud SOAP structuring is included with VetNotes — there is nothing to set up here.
+                    If you'd rather run AI usage through your own Google AI account, paste a
+                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="text-blue-400 underline">Gemini API key</a>
+                    below and it will be used instead of ours.
                 </p>
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-2">API Key</label>
-                        <input type="password" bind:value={aivaApiKey} placeholder="Enter your key..." class="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"/>
+                        <label for="gemini-key-input" class="block text-xs text-gray-500 font-semibold mb-2">Your Gemini API key (optional)</label>
+                        <!-- svelte-ignore a11y-autofocus -->
+                        <input id="gemini-key-input" type="password" autofocus bind:value={aivaApiKey} placeholder="Paste key, or leave empty to use the built-in one" class="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"/>
                     </div>
                 </div>
                 <div class="mt-8 flex justify-end">
-                    <button class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-semibold transition-colors" on:click={() => { localStorage.setItem("aiva_api_key", aivaApiKey); showSettings = false; }}>Save Configuration</button>
+                    <button class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-semibold transition-colors" on:click={() => { localStorage.setItem("aiva_api_key", aivaApiKey); showSettings = false; }}>Save</button>
                 </div>
             </div>
         </div>
     {/if}
 
     <main class="grid lg:grid-cols-4 gap-8">
-        <aside class="space-y-6">
+        <aside class="space-y-6 order-2 lg:order-none">
             <div class="glass-panel rounded-3xl p-6 space-y-6">
                 <div>
                     <p class="text-xs text-white/40 font-semibold mb-4">Connection status</p>
@@ -430,7 +437,7 @@
             </div>
         </aside>
 
-        <section class="lg:col-span-3 space-y-8">
+        <section class="lg:col-span-3 flex flex-col gap-8 order-1 lg:order-none">
             <!-- Patient Picker -->
             <PatientPicker />
 
@@ -459,7 +466,7 @@
                 </div>
             {/if}
 
-            <div class="glass-panel rounded-3xl p-8 min-h-[400px] flex flex-col">
+            <div class="glass-panel rounded-3xl p-8 min-h-[400px] flex flex-col order-3 lg:order-none">
                 <div class="flex justify-between items-center mb-8">
                     <h3 class="text-xl font-bold text-white/90 tracking-tight">Clinical Intelligence</h3>
                     <div class="flex space-x-3">
@@ -532,10 +539,10 @@
                 </div>
             </div>
 
-            <div class="grid md:grid-cols-2 gap-8">
+            <div class="grid md:grid-cols-2 gap-8 order-2 lg:order-none">
                 <div class="glass-panel rounded-3xl p-8 flex items-center justify-between">
                     <div class="flex items-center gap-6">
-                        <button on:click={toggleRecording} class="w-16 h-16 rounded-full flex items-center justify-center transition-all {isRecording ? 'bg-red-500 animate-pulse' : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/20'}">
+                        <button on:click={toggleRecording} aria-label={isRecording ? "Stop recording" : "Start recording"} class="w-16 h-16 rounded-full flex items-center justify-center transition-all {isRecording ? 'bg-red-500 animate-pulse' : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/20'}">
                             {#if isRecording}
                                 <div class="w-5 h-5 bg-white rounded-sm"></div>
                             {:else}
@@ -560,7 +567,7 @@
                 </div>
             </div>
 
-            <div class="glass-panel rounded-3xl overflow-hidden flex flex-col min-h-[400px]">
+            <div class="glass-panel rounded-3xl overflow-hidden flex flex-col min-h-[400px] order-4 lg:order-none">
                 <div class="bg-white/5 px-8 py-4 flex justify-between items-center border-b border-white/5">
                     <span class="text-xs font-semibold text-white/40">Manual clinical editor</span>
                     <button on:click={clearWorkspace} class="text-xs font-semibold text-white/20 hover:text-white/60 transition-colors">Clear all</button>

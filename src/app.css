@@ -88,12 +88,16 @@
 .daylight .text-white\/80 { color: #24312B !important; }
 .daylight .text-white\/60 { color: #4F5D55 !important; }
 .daylight .text-white\/40,
-.daylight .text-white\/30 { color: #6E7B73 !important; }
+.daylight .text-white\/30 { color: #5C6A62 !important; }
 .daylight .text-white\/20,
-.daylight .text-white\/10 { color: #8B968E !important; }
+.daylight .text-white\/10 { color: #67746C !important; }
 .daylight .hover\:text-white:hover,
 .daylight .hover\:text-white\/60:hover { color: #24312B !important; }
-.daylight .text-gray-500 { color: #6E7B73 !important; }
+.daylight .text-gray-500 { color: #5C6A62 !important; }
+.daylight .text-purple-400 { color: #3E7C5B !important; }
+.daylight .bg-purple-600 { background-color: #3E7C5B !important; }
+.daylight .border-purple-500\/30 { border-color: #C9DCD0 !important; }
+.daylight .text-red-400 { color: #B4433A !important; }
 
 /* Plain text-white: ink by default; stays white on solid accent surfaces */
 .daylight .text-white { color: #24312B !important; }

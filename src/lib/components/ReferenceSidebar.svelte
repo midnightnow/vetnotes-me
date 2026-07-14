@@ -198,24 +198,24 @@
                     : 'bg-white/20'}"
             ></div>
             <h3
-                class="text-[10px] font-black uppercase tracking-widest text-white/60"
+                class="text-xs font-semibold text-white/60"
             >
-                AIVA Context
+                Clinical reference
             </h3>
         </div>
 
         <div class="flex bg-black/40 rounded-lg p-0.5 border border-white/10">
             <button
-                class="px-2 py-0.5 rounded text-[8px] font-black uppercase {species ===
+                class="px-2 py-0.5 rounded text-[10px] font-semibold {species ===
                 'canine'
-                    ? 'bg-blue-600'
+                    ? 'bg-blue-600 text-white'
                     : 'text-white/40'}"
                 on:click={() => (species = "canine")}>Canine</button
             >
             <button
-                class="px-2 py-0.5 rounded text-[8px] font-black uppercase {species ===
+                class="px-2 py-0.5 rounded text-[10px] font-semibold {species ===
                 'feline'
-                    ? 'bg-purple-600'
+                    ? 'bg-blue-600 text-white'
                     : 'text-white/40'}"
                 on:click={() => (species = "feline")}>Feline</button
             >
@@ -224,13 +224,13 @@
 
     <div class="px-2 mb-4 space-y-2">
         <button
-            class="w-full flex justify-between items-center px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-tight {studyMode
-                ? 'text-purple-400 border-purple-500/30'
+            class="w-full flex justify-between items-center px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-[10px] font-semibold {studyMode
+                ? 'text-blue-400 border-blue-500/20'
                 : 'text-white/40'}"
             on:click={() => (studyMode = !studyMode)}
         >
             <span>Study Mode</span>
-            <span class={studyMode ? "text-purple-400" : ""}
+            <span class={studyMode ? "text-blue-400" : ""}
                 >{studyMode ? "ON" : "OFF"}</span
             >
         </button>
@@ -244,7 +244,7 @@
             >
                 <div class="flex flex-col flex-1">
                     <span
-                        class="text-[8px] font-black text-white/30 uppercase tracking-widest leading-none mb-1"
+                        class="text-[10px] font-semibold text-white/40 leading-none mb-1"
                         >Weight</span
                     >
                     <input
@@ -261,7 +261,7 @@
 
                 {#if weightDetectedFrom && !isWeightLocked}
                     <span
-                        class="text-[8px] font-bold text-blue-400/60 uppercase whitespace-nowrap"
+                        class="text-[10px] font-semibold text-blue-400/60 whitespace-nowrap"
                         >{weightDetectedFrom.value}{weightDetectedFrom.unit}</span
                     >
                 {/if}
@@ -278,11 +278,10 @@
                                 { once: true },
                             );
                         }}
-                        class="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                        aria-label={isWeightLocked ? "Unlock weight" : "Lock weight"}
+                        class="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/40"
                     >
-                        <span class="text-sm"
-                            >{isWeightLocked ? "🔒" : "🔓"}</span
-                        >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">{#if isWeightLocked}<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>{:else}<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-1.9"/>{/if}</svg>
                     </button>
                 </div>
             </label>
@@ -292,11 +291,10 @@
     <div class="flex-grow overflow-y-auto pr-2 space-y-4 custom-scrollbar">
         {#if activeCards.length === 0}
             <div
-                class="flex flex-col items-center justify-center py-20 opacity-20 text-center grayscale"
+                class="flex flex-col items-center justify-center py-20 opacity-40 text-center px-4"
             >
-                <span class="text-4xl mb-4">🩺</span>
-                <p class="text-[10px] uppercase font-black tracking-widest">
-                    Listening...
+                <p class="text-xs leading-relaxed">
+                    Reference cards appear here when the note mentions drugs, toxins, or emergencies.
                 </p>
             </div>
         {:else}
