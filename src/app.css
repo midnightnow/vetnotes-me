@@ -48,3 +48,88 @@
 .animate-pulse-ring {
     animation: pulse-ring 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+ * Daylight Practice theme — scoped to any subtree carrying `.daylight`.
+ * Remaps the dark-glass utility vocabulary onto a warm clinical light
+ * palette (ivory ground, white surfaces, sage accent) WITHOUT touching
+ * component markup: selectors key on the existing Tailwind class names.
+ * Tokens: ivory #F7F5F0 · surface #FFF · ink #24312B · muted #6E7B73
+ *         sage #3E7C5B · border #E3DED2
+ * Rollout: homepage first; apply `.daylight` to other routes to migrate.
+ * ═══════════════════════════════════════════════════════════════════ */
+.daylight {
+    min-height: 100vh;
+    background-color: #F7F5F0;
+    color: #24312B;
+}
+
+/* Surfaces */
+.daylight .glass-panel {
+    background: #FFFFFF;
+    border: 1px solid #E3DED2;
+    box-shadow: 0 1px 3px rgba(46, 60, 52, 0.07);
+    backdrop-filter: none;
+}
+.daylight .bg-gray-900 { background-color: #FFFFFF !important; }
+.daylight .bg-black\/20 { background-color: #FBFAF6 !important; }
+.daylight .bg-black\/40 { background-color: #F3F1EA !important; }
+.daylight .bg-black\/50 { background-color: #FFFFFF !important; }
+.daylight .bg-black\/80 { background-color: rgba(36, 49, 43, 0.35) !important; } /* modal scrim */
+.daylight .bg-white\/5 { background-color: #F3F1EA !important; }
+.daylight .bg-white\/10 { background-color: #EAE6DB !important; }
+.daylight .bg-white\/\[0\.02\] { background-color: #FBFAF6 !important; }
+.daylight .hover\:bg-white\/5:hover,
+.daylight .hover\:bg-white\/10:hover,
+.daylight .hover\:bg-white\/20:hover { background-color: #EAE6DB !important; }
+
+/* Text — alpha-white ramp becomes the ink/muted ramp */
+.daylight .text-white\/90,
+.daylight .text-white\/80 { color: #24312B !important; }
+.daylight .text-white\/60 { color: #4F5D55 !important; }
+.daylight .text-white\/40,
+.daylight .text-white\/30 { color: #6E7B73 !important; }
+.daylight .text-white\/20,
+.daylight .text-white\/10 { color: #8B968E !important; }
+.daylight .hover\:text-white:hover,
+.daylight .hover\:text-white\/60:hover { color: #24312B !important; }
+.daylight .text-gray-500 { color: #6E7B73 !important; }
+
+/* Plain text-white: ink by default; stays white on solid accent surfaces */
+.daylight .text-white { color: #24312B !important; }
+.daylight .bg-blue-600 .text-white,
+.daylight .bg-blue-600.text-white,
+.daylight .bg-blue-800 .text-white,
+.daylight .bg-blue-800.text-white,
+.daylight .bg-gray-700 .text-white,
+.daylight .bg-gray-700.text-white,
+.daylight .bg-red-500 .text-white,
+.daylight .bg-red-500.text-white { color: #FFFFFF !important; }
+
+/* Accent: blue → sage; status green folds into the same clinical green */
+.daylight .bg-blue-600 { background-color: #3E7C5B !important; }
+.daylight .bg-blue-800 { background-color: #2E5C44 !important; }
+.daylight .hover\:bg-blue-500:hover { background-color: #356B4E !important; }
+.daylight .bg-gray-700 { background-color: #8B968E !important; } /* disabled action */
+.daylight .text-blue-400 { color: #3E7C5B !important; }
+.daylight .text-blue-400\/60 { color: #52705F !important; }
+.daylight .text-blue-500 { color: #3E7C5B !important; }
+.daylight .text-green-500 { color: #3E7C5B !important; }
+.daylight .bg-green-500 { background-color: #3E7C5B !important; }
+.daylight .bg-blue-500\/5,
+.daylight .bg-blue-500\/10,
+.daylight .bg-blue-600\/10 { background-color: #E4EFE7 !important; }
+.daylight .border-blue-500\/10,
+.daylight .border-blue-500\/20 { border-color: #C9DCD0 !important; }
+.daylight .border-blue-500,
+.daylight .border-blue-600,
+.daylight .focus\:border-blue-500:focus { border-color: #3E7C5B !important; }
+.daylight .text-blue-400\/60.font-mono { font-family: inherit; }
+
+/* Borders */
+.daylight .border-white\/5,
+.daylight .border-white\/10,
+.daylight .border-white\/20 { border-color: #E3DED2 !important; }
+
+/* Scrollbars inside the light shell */
+.daylight textarea::-webkit-scrollbar-thumb { background: #D8D3C6; }

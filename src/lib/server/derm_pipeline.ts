@@ -1,10 +1,4 @@
-import { readFileSync } from 'fs';
-import { fileURLToPath, URL } from 'url';
-import { join, dirname } from 'path';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const schemaPath = join(__dirname, '..', 'schemas', 'dermatology-leader-format-v1.json');
-const schemaRaw = readFileSync(schemaPath, 'utf-8');
+import dermLeaderSchema from '../schemas/dermatology-leader-format-v1.json';
 
 const REQUIRED_FIELDS = [
   'diet_trial_duration_weeks',
@@ -53,7 +47,7 @@ export function extractMetadataBlock(text: string): string | null {
 
 export function validateMetadata(data: unknown): DermMetadataValidation {
   try {
-    const schema = JSON.parse(schemaRaw);
+    const schema = dermLeaderSchema as any;
     const validate = (value: unknown) => {
       if (typeof value !== 'object' || value === null) return ['Root payload must be an object'];
       const obj = value as Record<string, unknown>;

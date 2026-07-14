@@ -340,6 +340,7 @@
     <title>VetNotes | Clinical Workflow</title>
 </svelte:head>
 
+<div class="daylight">
 <div class="max-w-6xl mx-auto px-6 py-8">
     <header class="flex justify-between items-center mb-8 border-b border-white/5 pb-6">
         <div class="flex items-center space-x-4">
@@ -350,8 +351,8 @@
                 <h1 class="text-xl font-bold tracking-tight text-white/90">
                     VetNotes<span class="text-blue-400">.me</span>
                 </h1>
-                <p class="text-[10px] text-white/40 font-mono tracking-widest uppercase">
-                    Open Source Clinical Documentation
+                <p class="text-[11px] text-white/40">
+                    Open-source clinical documentation
                 </p>
             </div>
         </div>
@@ -392,7 +393,7 @@
         <aside class="space-y-6">
             <div class="glass-panel rounded-3xl p-6 space-y-6">
                 <div>
-                    <p class="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-4">Connection Status</p>
+                    <p class="text-xs text-white/40 font-semibold mb-4">Connection status</p>
                     <div class="flex items-center space-x-3">
                         <span class="w-2 h-2 rounded-full {isRecording ? 'bg-red-500 animate-pulse' : 'bg-green-500'}"></span>
                         <p class="text-xs font-bold text-white/80">{status}</p>
@@ -400,31 +401,31 @@
                 </div>
 
                 <div class="pt-6 border-t border-white/5">
-                    <p class="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-4">Privacy & Security</p>
+                    <p class="text-xs text-white/40 font-semibold mb-4">Privacy &amp; security</p>
                     <div class="space-y-2">
-                        <div class="flex items-center space-x-2 text-[10px] text-white/60">
+                        <div class="flex items-center space-x-2 text-xs text-white/60">
                             <span class="text-green-500">✓</span>
-                            <span>Local Transcription</span>
+                            <span>Local transcription</span>
                         </div>
-                        <div class="flex items-center space-x-2 text-[10px] text-white/60">
+                        <div class="flex items-center space-x-2 text-xs text-white/60">
                             <span class="text-green-500">✓</span>
-                            <span>Zero Data Retention</span>
+                            <span>Zero data retention</span>
                         </div>
-                        <div class="flex items-center space-x-2 text-[10px] text-white/60">
+                        <div class="flex items-center space-x-2 text-xs text-white/60">
                             <span class="text-green-500">✓</span>
-                            <span>PII Redaction Active</span>
+                            <span>PII redaction active</span>
                         </div>
                         {#if $isAuthenticated}
-                            <div class="flex items-center space-x-2 text-[10px] text-white/60">
+                            <div class="flex items-center space-x-2 text-xs text-white/60">
                                 <span class="text-blue-400">✓</span>
-                                <span>Cloud Sync Enabled</span>
+                                <span>Cloud sync enabled</span>
                             </div>
                         {/if}
                     </div>
                 </div>
 
                 <div class="pt-6 border-t border-white/5 flex flex-col gap-3">
-                    <button on:click={clearWorkspace} class="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all">Clear Workspace</button>
+                    <button on:click={clearWorkspace} class="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white text-xs font-semibold transition-all">Clear workspace</button>
                 </div>
             </div>
         </aside>
@@ -471,7 +472,7 @@
                             class="px-4 py-2 text-xs font-semibold {isPushing ? 'bg-blue-800' : !$isAuthenticated ? 'bg-gray-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'} rounded-xl transition-all shadow-lg disabled:opacity-50"
                         >
                             {#if !$isAuthenticated}
-                                🔒 Sync to PIMS
+                                Sync to PIMS
                             {:else}
                                 {isPushing ? "Syncing..." : "Sync to PIMS"}
                             {/if}
@@ -481,24 +482,24 @@
                 <div class="grid md:grid-cols-3 gap-8 flex-grow">
                     <div class="space-y-6">
                         <div class="bg-black/20 rounded-2xl p-6 border border-white/5">
-                            <p class="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-4">Consultation Progress</p>
+                            <p class="text-xs text-white/40 font-semibold mb-4">Consultation progress</p>
                             <div class="grid grid-cols-2 gap-4">
                                 <div class="text-center">
                                     <span class="block text-2xl font-bold font-mono text-white">{formatTime(elapsedTime)}</span>
-                                    <span class="text-[10px] text-white/40 uppercase tracking-widest">Elapsed</span>
+                                    <span class="text-xs text-white/40">Elapsed</span>
                                 </div>
                                 <div class="text-center">
                                     <span class="block text-2xl font-bold font-mono text-blue-400">{$player.totalConsultations}</span>
-                                    <span class="text-[10px] text-white/40 uppercase tracking-widest">Sessions</span>
+                                    <span class="text-xs text-white/40">Sessions</span>
                                 </div>
                             </div>
                         </div>
 
                         <div>
-                            <p class="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-4">Clinical Templates</p>
+                            <p class="text-xs text-white/40 font-semibold mb-4">Clinical templates</p>
                             <div class="grid grid-cols-1 gap-2">
                                 {#each Object.entries(SOAP_TEMPLATES).filter(([k]) => visibleTemplates.includes(k)) as [key, template]}
-                                    <button on:click={() => (selectedTemplate = key)} class="text-left px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all {selectedTemplate === key ? 'bg-blue-600 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}">
+                                    <button on:click={() => (selectedTemplate = key)} class="text-left px-4 py-2 rounded-lg text-xs font-semibold transition-all {selectedTemplate === key ? 'bg-blue-600 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}">
                                         {template.name}
                                     </button>
                                 {/each}
@@ -518,7 +519,7 @@
                             {:else if isProcessing}
                                 <div class="flex flex-col items-center justify-center h-full space-y-4 opacity-40">
                                     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                                    <p class="text-xs">Generating Clinical Record...</p>
+                                    <p class="text-xs">Generating clinical record…</p>
                                 </div>
                             {:else}
                                 <div class="flex flex-col items-center justify-center h-full opacity-20 text-center">
@@ -542,16 +543,16 @@
                             {/if}
                         </button>
                         <div>
-                            <h4 class="font-bold text-white">{isRecording ? "Recording..." : "New Consult"}</h4>
-                            <p class="text-xs text-white/40">{isRecording ? "Transcribing live feed" : "Tap icon to start"}</p>
+                            <h4 class="font-bold text-white">{isRecording ? "Recording…" : "New consult"}</h4>
+                            <p class="text-xs text-white/40">{isRecording ? "Transcribing as you speak" : "Tap the microphone to start"}</p>
                         </div>
                     </div>
                 </div>
 
                 <div class="glass-panel rounded-3xl p-6 bg-black/40">
-                    <p class="text-[10px] font-black text-white/20 uppercase tracking-widest mb-4">Live Transcript Buffer</p>
-                    <div class="h-[80px] overflow-y-auto font-mono text-[11px] leading-relaxed text-blue-400/60">
-                        {rawTranscript || "Awaiting signal..."}
+                    <p class="text-xs font-semibold text-white/40 mb-4">Live transcript</p>
+                    <div class="h-[80px] overflow-y-auto text-xs leading-relaxed text-blue-400/60">
+                        {rawTranscript || "Ready — the transcript appears here as you speak."}
                         {#if interimTranscript}
                             <span class="opacity-30">{interimTranscript}</span>
                         {/if}
@@ -561,8 +562,8 @@
 
             <div class="glass-panel rounded-3xl overflow-hidden flex flex-col min-h-[400px]">
                 <div class="bg-white/5 px-8 py-4 flex justify-between items-center border-b border-white/5">
-                    <span class="text-xs font-bold text-white/40 uppercase tracking-widest">Manual Clinical Editor</span>
-                    <button on:click={clearWorkspace} class="text-[10px] font-bold text-white/20 hover:text-white/60 transition-colors">CLEAR ALL</button>
+                    <span class="text-xs font-semibold text-white/40">Manual clinical editor</span>
+                    <button on:click={clearWorkspace} class="text-xs font-semibold text-white/20 hover:text-white/60 transition-colors">Clear all</button>
                 </div>
                 <div class="flex h-full">
                     <textarea bind:value={rawTranscript} on:input={handleEditorInput} class="flex-grow bg-transparent p-10 font-mono text-sm leading-relaxed text-white/80 focus:outline-none resize-none" placeholder="Draft clinical notes here..."></textarea>
@@ -575,18 +576,19 @@
     </main>
 
     <footer class="mt-20 mb-12 text-center">
-        <p class="text-white/10 text-[10px] uppercase tracking-widest font-bold">VetNotes Web &copy; 2026 • Built for Clinicians</p>
+        <p class="text-white/20 text-xs">VetNotes Web &copy; 2026 · Built for clinicians</p>
     </footer>
 
     <AxisPickerModal type={activeAxisType || "pathology"} isOpen={showAxisPicker} on:save={handleAxisSave} on:cancel={() => { showAxisPicker = false; activeAxisType = null; }} />
 </div>
+</div>
 
 <style>
     .glass-panel {
-        background: rgba(255, 255, 255, 0.02);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        background: #ffffff;
+        border: 1px solid #e3ded2;
+        box-shadow: 0 1px 3px rgba(46, 60, 52, 0.07);
     }
     textarea::-webkit-scrollbar { width: 6px; }
-    textarea::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
+    textarea::-webkit-scrollbar-thumb { background: #d8d3c6; border-radius: 10px; }
 </style>

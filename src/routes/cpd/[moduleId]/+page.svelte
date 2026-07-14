@@ -29,8 +29,7 @@
         {@const isSelected = selectedCaseIndex === idx}
         <li>
           <button
-            class="text-left w-full rounded border p-3 hover:border-white/20 transition-colors"
-            class:border-white/20={isSelected}
+            class="text-left w-full rounded border p-3 hover:border-white/20 transition-colors {isSelected ? 'border-white/20' : ''}"
             onclick={() => (selectedCaseIndex = idx)}
           >
             <div class="font-medium">{caseItem.title}</div>
