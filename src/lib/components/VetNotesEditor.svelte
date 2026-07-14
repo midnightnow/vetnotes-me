@@ -58,9 +58,58 @@
     let billingItems: any[] = [];
     volatileBillingTray.subscribe((items) => (billingItems = items));
 
+    // ── Draft persistence — an in-progress note must survive a reload ──
+    const DRAFT_KEY = "vetnotes_draft";
+    const UPGRADE_URL =
+        "https://vetsorcery.com/pricing?utm_source=vetnotes&utm_medium=app&utm_campaign=upgrade_cta";
+    let draftReady = false; // guard: don't persist until restore has run
+    let draftRestored = false;
+    let draftTimer: any = null;
+
+    function persistDraft(raw: string, structured: string) {
+        if (!draftReady || typeof window === "undefined") return;
+        if (draftTimer) clearTimeout(draftTimer);
+        draftTimer = setTimeout(() => {
+            if (raw.trim() || structured.trim()) {
+                localStorage.setItem(
+                    DRAFT_KEY,
+                    JSON.stringify({ raw, structured, template: selectedTemplate, ts: Date.now() }),
+                );
+            } else {
+                localStorage.removeItem(DRAFT_KEY);
+            }
+        }, 600);
+    }
+    $: persistDraft(rawTranscript, transcript);
+
+    function restoreDraft() {
+        try {
+            const stored = localStorage.getItem(DRAFT_KEY);
+            if (!stored) return;
+            const draft = JSON.parse(stored);
+            if (!rawTranscript.trim() && !transcript.trim() && (draft.raw?.trim() || draft.structured?.trim())) {
+                rawTranscript = draft.raw || "";
+                transcript = draft.structured || "";
+                if (draft.template) selectedTemplate = draft.template;
+                draftRestored = true;
+                status = "Draft restored from your last session";
+            }
+        } catch (e) {
+            console.error("Draft restore failed:", e);
+        }
+    }
+
+    function discardDraft() {
+        localStorage.removeItem(DRAFT_KEY);
+        draftRestored = false;
+        clearWorkspace();
+    }
+
     onMount(async () => {
         initAuth();
         volatileBillingTray.restore();
+        restoreDraft();
+        draftReady = true;
 
         // === Imaging Hub Import Receiver ===
         if (typeof window !== 'undefined') {
@@ -138,9 +187,9 @@
                 }
                 interimTranscript = interim;
             };
-            status = "Ready for Consult";
+            if (!draftRestored) status = "Ready for Consult";
         } else {
-            status = "Speech recognition not supported";
+            if (!draftRestored) status = "Speech recognition not supported";
         }
     });
 
@@ -294,7 +343,19 @@
         keyInsights = 0;
         elapsedTime = 0;
         status = "Ready for Consult";
+        draftRestored = false;
         volatileBillingTray.clear();
+        if (typeof window !== "undefined") localStorage.removeItem(DRAFT_KEY);
+    }
+
+    function confirmClearWorkspace() {
+        if (
+            (rawTranscript.trim() || transcript.trim()) &&
+            !window.confirm("Clear the current note? This can't be undone.")
+        ) {
+            return;
+        }
+        clearWorkspace();
     }
 
     function handleEditorInput(e: Event) {
@@ -341,7 +402,10 @@
     <title>VetNotes | Clinical Workflow</title>
 </svelte:head>
 
-<svelte:window on:keydown={(e) => { if (e.key === "Escape" && showSettings) showSettings = false; }} />
+<svelte:window
+    on:keydown={(e) => { if (e.key === "Escape" && showSettings) showSettings = false; }}
+    on:beforeunload={(e) => { if (isRecording) { e.preventDefault(); e.returnValue = ""; } }}
+/>
 
 <div class={$theme === "nightshift" ? "nightshift" : "daylight"}>
 <div class="max-w-6xl mx-auto px-6 py-8">
@@ -377,7 +441,7 @@
             </button>
             <button class="text-xs text-white/40 hover:text-white transition-colors" on:click={() => (showSettings = true)}>Settings</button>
             {#if !$isAuthenticated || !$isPro}
-                <ProButton size="sm" on:click={() => {}}>Upgrade to Pro</ProButton>
+                <ProButton size="sm" on:click={() => window.open(UPGRADE_URL, "_blank", "noopener")}>Upgrade to Pro</ProButton>
             {/if}
             <AuthButton />
         </div>
@@ -433,6 +497,9 @@
                         <span class="w-2 h-2 rounded-full {isRecording ? 'bg-red-500 animate-pulse' : 'bg-green-500'}"></span>
                         <p class="text-xs font-bold text-white/80">{status}</p>
                     </div>
+                    {#if draftRestored}
+                        <button on:click={discardDraft} class="mt-2 text-xs text-white/40 underline hover:text-white transition-colors">Discard restored draft</button>
+                    {/if}
                 </div>
 
                 <div class="pt-6 border-t border-white/5">
@@ -460,7 +527,7 @@
                 </div>
 
                 <div class="pt-6 border-t border-white/5 flex flex-col gap-3">
-                    <button on:click={clearWorkspace} class="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white text-xs font-semibold transition-all">Clear workspace</button>
+                    <button on:click={confirmClearWorkspace} class="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white text-xs font-semibold transition-all">Clear workspace</button>
                 </div>
             </div>
         </aside>
@@ -598,7 +665,7 @@
             <div class="glass-panel rounded-3xl overflow-hidden flex flex-col min-h-[400px] order-4 lg:order-none">
                 <div class="bg-white/5 px-8 py-4 flex justify-between items-center border-b border-white/5">
                     <span class="text-xs font-semibold text-white/40">Manual clinical editor</span>
-                    <button on:click={clearWorkspace} class="text-xs font-semibold text-white/20 hover:text-white/60 transition-colors">Clear all</button>
+                    <button on:click={confirmClearWorkspace} class="text-xs font-semibold text-white/20 hover:text-white/60 transition-colors">Clear all</button>
                 </div>
                 <div class="flex h-full">
                     <textarea bind:value={rawTranscript} on:input={handleEditorInput} class="flex-grow bg-transparent p-10 font-mono text-sm leading-relaxed text-white/80 focus:outline-none resize-none" placeholder="Draft clinical notes here..."></textarea>
