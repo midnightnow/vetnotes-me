@@ -50,90 +50,151 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
- * Daylight Practice theme — scoped to any subtree carrying `.daylight`.
- * Remaps the dark-glass utility vocabulary onto a warm clinical light
- * palette (ivory ground, white surfaces, sage accent) WITHOUT touching
- * component markup: selectors key on the existing Tailwind class names.
- * Tokens: ivory #F7F5F0 · surface #FFF · ink #24312B · muted #6E7B73
- *         sage #3E7C5B · border #E3DED2
- * Rollout: homepage first; apply `.daylight` to other routes to migrate.
+ * VetNotes theme system — semantic tokens + utility remaps.
+ * A theme = a class on the app wrapper that sets the --t-* variables.
+ * The single override block below remaps the app's existing Tailwind
+ * utility vocabulary onto those variables, so components re-theme with
+ * zero markup changes and a new theme is just another variable block.
+ * Themes: .daylight (stationery light — default) · .nightshift (slate
+ * instrument dark). Values are structured for future lifting into
+ * @aiva/tokens (canonical cross-product token home) via sync script.
+ * Rollout: homepage first; apply the class to other routes to migrate.
  * ═══════════════════════════════════════════════════════════════════ */
+
 .daylight {
+    --t-bg: #F7F5F0;
+    --t-surface: #FFFFFF;
+    --t-surface-2: #F3F1EA;
+    --t-surface-3: #FBFAF6;
+    --t-hover: #EAE6DB;
+    --t-ink: #24312B;
+    --t-ink-2: #4F5D55;
+    --t-muted: #5C6A62;
+    --t-faint: #67746C;
+    --t-border: #E3DED2;
+    --t-accent: #3E7C5B;
+    --t-accent-hover: #356B4E;
+    --t-accent-strong: #2E5C44;
+    --t-accent-soft: #E4EFE7;
+    --t-accent-border: #C9DCD0;
+    --t-on-accent: #FFFFFF;
+    --t-record: #3E7C5B;
+    --t-on-record: #FFFFFF;
+    --t-danger: #B4433A;
+    --t-disabled: #8B968E;
+    --t-scrim: rgba(36, 49, 43, 0.35);
+    --t-panel-shadow: 0 1px 3px rgba(46, 60, 52, 0.07);
+    --t-scrollbar: #D8D3C6;
+}
+
+.nightshift {
+    --t-bg: #10161F;
+    --t-surface: #18202B;
+    --t-surface-2: #1D2632;
+    --t-surface-3: #141C27;
+    --t-hover: #243040;
+    --t-ink: #E6ECF3;
+    --t-ink-2: #C3CDD8;
+    --t-muted: #8A97A8;
+    --t-faint: #74818F;
+    --t-border: #2B3646;
+    --t-accent: #37C0AE;
+    --t-accent-hover: #2FA896;
+    --t-accent-strong: #27897C;
+    --t-accent-soft: #153029;
+    --t-accent-border: #1F4A40;
+    --t-on-accent: #07211C;
+    --t-record: #E8A33D;
+    --t-on-record: #241A05;
+    --t-danger: #E06055;
+    --t-disabled: #55616E;
+    --t-scrim: rgba(4, 8, 14, 0.6);
+    --t-panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    --t-scrollbar: #2B3646;
+}
+
+.daylight,
+.nightshift {
     min-height: 100vh;
-    background-color: #F7F5F0;
-    color: #24312B;
+    background-color: var(--t-bg);
+    color: var(--t-ink);
 }
 
 /* Surfaces */
-.daylight .glass-panel {
-    background: #FFFFFF;
-    border: 1px solid #E3DED2;
-    box-shadow: 0 1px 3px rgba(46, 60, 52, 0.07);
+:is(.daylight, .nightshift) .glass-panel {
+    background: var(--t-surface);
+    border: 1px solid var(--t-border);
+    box-shadow: var(--t-panel-shadow);
     backdrop-filter: none;
 }
-.daylight .bg-gray-900 { background-color: #FFFFFF !important; }
-.daylight .bg-black\/20 { background-color: #FBFAF6 !important; }
-.daylight .bg-black\/40 { background-color: #F3F1EA !important; }
-.daylight .bg-black\/50 { background-color: #FFFFFF !important; }
-.daylight .bg-black\/80 { background-color: rgba(36, 49, 43, 0.35) !important; } /* modal scrim */
-.daylight .bg-white\/5 { background-color: #F3F1EA !important; }
-.daylight .bg-white\/10 { background-color: #EAE6DB !important; }
-.daylight .bg-white\/\[0\.02\] { background-color: #FBFAF6 !important; }
-.daylight .hover\:bg-white\/5:hover,
-.daylight .hover\:bg-white\/10:hover,
-.daylight .hover\:bg-white\/20:hover { background-color: #EAE6DB !important; }
+:is(.daylight, .nightshift) .bg-gray-900 { background-color: var(--t-surface) !important; }
+:is(.daylight, .nightshift) .bg-black\/20 { background-color: var(--t-surface-3) !important; }
+:is(.daylight, .nightshift) .bg-black\/40 { background-color: var(--t-surface-2) !important; }
+:is(.daylight, .nightshift) .bg-black\/50 { background-color: var(--t-surface) !important; }
+:is(.daylight, .nightshift) .bg-black\/80 { background-color: var(--t-scrim) !important; }
+:is(.daylight, .nightshift) .bg-white\/5 { background-color: var(--t-surface-2) !important; }
+:is(.daylight, .nightshift) .bg-white\/10 { background-color: var(--t-hover) !important; }
+:is(.daylight, .nightshift) .bg-white\/\[0\.02\] { background-color: var(--t-surface-3) !important; }
+:is(.daylight, .nightshift) .hover\:bg-white\/5:hover,
+:is(.daylight, .nightshift) .hover\:bg-white\/10:hover,
+:is(.daylight, .nightshift) .hover\:bg-white\/20:hover { background-color: var(--t-hover) !important; }
 
 /* Text — alpha-white ramp becomes the ink/muted ramp */
-.daylight .text-white\/90,
-.daylight .text-white\/80 { color: #24312B !important; }
-.daylight .text-white\/60 { color: #4F5D55 !important; }
-.daylight .text-white\/40,
-.daylight .text-white\/30 { color: #5C6A62 !important; }
-.daylight .text-white\/20,
-.daylight .text-white\/10 { color: #67746C !important; }
-.daylight .hover\:text-white:hover,
-.daylight .hover\:text-white\/60:hover { color: #24312B !important; }
-.daylight .text-gray-500 { color: #5C6A62 !important; }
-.daylight .text-purple-400 { color: #3E7C5B !important; }
-.daylight .bg-purple-600 { background-color: #3E7C5B !important; }
-.daylight .border-purple-500\/30 { border-color: #C9DCD0 !important; }
-.daylight .text-red-400 { color: #B4433A !important; }
+:is(.daylight, .nightshift) .text-white\/90,
+:is(.daylight, .nightshift) .text-white\/80 { color: var(--t-ink) !important; }
+:is(.daylight, .nightshift) .text-white\/60 { color: var(--t-ink-2) !important; }
+:is(.daylight, .nightshift) .text-white\/40,
+:is(.daylight, .nightshift) .text-white\/30 { color: var(--t-muted) !important; }
+:is(.daylight, .nightshift) .text-white\/20,
+:is(.daylight, .nightshift) .text-white\/10 { color: var(--t-faint) !important; }
+:is(.daylight, .nightshift) .hover\:text-white:hover,
+:is(.daylight, .nightshift) .hover\:text-white\/60:hover { color: var(--t-ink) !important; }
+:is(.daylight, .nightshift) .text-gray-500 { color: var(--t-muted) !important; }
+:is(.daylight, .nightshift) .text-purple-400 { color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .text-red-400 { color: var(--t-danger) !important; }
 
-/* Plain text-white: ink by default; stays white on solid accent surfaces */
-.daylight .text-white { color: #24312B !important; }
-.daylight .bg-blue-600 .text-white,
-.daylight .bg-blue-600.text-white,
-.daylight .bg-blue-800 .text-white,
-.daylight .bg-blue-800.text-white,
-.daylight .bg-gray-700 .text-white,
-.daylight .bg-gray-700.text-white,
-.daylight .bg-red-500 .text-white,
-.daylight .bg-red-500.text-white { color: #FFFFFF !important; }
+/* Plain text-white: ink by default; on-accent on solid accent surfaces */
+:is(.daylight, .nightshift) .text-white { color: var(--t-ink) !important; }
+:is(.daylight, .nightshift) .bg-blue-600 .text-white,
+:is(.daylight, .nightshift) .bg-blue-600.text-white,
+:is(.daylight, .nightshift) .bg-blue-800 .text-white,
+:is(.daylight, .nightshift) .bg-blue-800.text-white,
+:is(.daylight, .nightshift) .bg-gray-700 .text-white,
+:is(.daylight, .nightshift) .bg-gray-700.text-white { color: var(--t-on-accent) !important; }
+:is(.daylight, .nightshift) .bg-red-500 .text-white,
+:is(.daylight, .nightshift) .bg-red-500.text-white { color: #FFFFFF !important; }
 
-/* Accent: blue → sage; status green folds into the same clinical green */
-.daylight .bg-blue-600 { background-color: #3E7C5B !important; }
-.daylight .bg-blue-800 { background-color: #2E5C44 !important; }
-.daylight .hover\:bg-blue-500:hover { background-color: #356B4E !important; }
-.daylight .bg-gray-700 { background-color: #8B968E !important; } /* disabled action */
-.daylight .text-blue-400 { color: #3E7C5B !important; }
-.daylight .text-blue-400\/60 { color: #52705F !important; }
-.daylight .text-blue-500 { color: #3E7C5B !important; }
-.daylight .text-green-500 { color: #3E7C5B !important; }
-.daylight .bg-green-500 { background-color: #3E7C5B !important; }
-.daylight .bg-blue-500\/5,
-.daylight .bg-blue-500\/10,
-.daylight .bg-blue-600\/10 { background-color: #E4EFE7 !important; }
-.daylight .border-blue-500\/10,
-.daylight .border-blue-500\/20 { border-color: #C9DCD0 !important; }
-.daylight .border-blue-500,
-.daylight .border-blue-600,
-.daylight .focus\:border-blue-500:focus { border-color: #3E7C5B !important; }
-.daylight .text-blue-400\/60.font-mono { font-family: inherit; }
+/* Accent mapping (blue/green/purple utilities fold into the theme accent) */
+:is(.daylight, .nightshift) .bg-blue-600 { background-color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .bg-blue-800 { background-color: var(--t-accent-strong) !important; }
+:is(.daylight, .nightshift) .hover\:bg-blue-500:hover { background-color: var(--t-accent-hover) !important; }
+:is(.daylight, .nightshift) .bg-gray-700 { background-color: var(--t-disabled) !important; }
+:is(.daylight, .nightshift) .bg-purple-600 { background-color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .text-blue-400 { color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .text-blue-400\/60 { color: var(--t-accent) !important; opacity: 0.85; }
+:is(.daylight, .nightshift) .text-blue-500 { color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .text-green-500 { color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .bg-green-500 { background-color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .bg-blue-500\/5,
+:is(.daylight, .nightshift) .bg-blue-500\/10,
+:is(.daylight, .nightshift) .bg-blue-600\/10 { background-color: var(--t-accent-soft) !important; }
+:is(.daylight, .nightshift) .border-blue-500\/10,
+:is(.daylight, .nightshift) .border-blue-500\/20,
+:is(.daylight, .nightshift) .border-purple-500\/30 { border-color: var(--t-accent-border) !important; }
+:is(.daylight, .nightshift) .border-blue-500,
+:is(.daylight, .nightshift) .border-blue-600,
+:is(.daylight, .nightshift) .focus\:border-blue-500:focus { border-color: var(--t-accent) !important; }
+
+/* The record button (mic) gets its own signal color per theme */
+:is(.daylight, .nightshift) .w-16.bg-blue-600 { background-color: var(--t-record) !important; }
+:is(.daylight, .nightshift) .w-16.bg-blue-600 .text-white,
+:is(.daylight, .nightshift) .w-16.bg-blue-600 svg { color: var(--t-on-record) !important; }
+:is(.daylight, .nightshift) .w-16.hover\:bg-blue-500:hover { background-color: var(--t-record) !important; filter: brightness(0.94); }
 
 /* Borders */
-.daylight .border-white\/5,
-.daylight .border-white\/10,
-.daylight .border-white\/20 { border-color: #E3DED2 !important; }
+:is(.daylight, .nightshift) .border-white\/5,
+:is(.daylight, .nightshift) .border-white\/10,
+:is(.daylight, .nightshift) .border-white\/20 { border-color: var(--t-border) !important; }
 
-/* Scrollbars inside the light shell */
-.daylight textarea::-webkit-scrollbar-thumb { background: #D8D3C6; }
+/* Scrollbars inside the themed shell */
+:is(.daylight, .nightshift) textarea::-webkit-scrollbar-thumb { background: var(--t-scrollbar); }

@@ -25,6 +25,7 @@
     import PatientPicker from "$lib/components/PatientPicker.svelte";
     import { selectedPatient } from "$lib/stores/patients";
     import { isPro } from "$lib/stores/clinic";
+    import { theme, THEMES } from "$lib/stores/theme";
     import { decodePayload } from "$lib/utils/encoding";
     import { fade, slide } from "svelte/transition";
 
@@ -342,7 +343,7 @@
 
 <svelte:window on:keydown={(e) => { if (e.key === "Escape" && showSettings) showSettings = false; }} />
 
-<div class="daylight">
+<div class={$theme === "nightshift" ? "nightshift" : "daylight"}>
 <div class="max-w-6xl mx-auto px-6 py-8">
     <header class="flex justify-between items-center mb-8 border-b border-white/5 pb-6">
         <div class="flex items-center space-x-4">
@@ -360,6 +361,20 @@
         </div>
 
         <div class="flex items-center space-x-4">
+            <button
+                class="text-white/40 hover:text-white transition-colors"
+                aria-label={$theme === "nightshift" ? "Switch to Daylight theme" : "Switch to Night Shift theme"}
+                title={$theme === "nightshift" ? "Switch to Daylight" : "Switch to Night Shift"}
+                on:click={() => theme.set($theme === "nightshift" ? "daylight" : "nightshift")}
+            >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24">
+                    {#if $theme === "nightshift"}
+                        <circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4m11.4-11.4 1.4-1.4"/>
+                    {:else}
+                        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+                    {/if}
+                </svg>
+            </button>
             <button class="text-xs text-white/40 hover:text-white transition-colors" on:click={() => (showSettings = true)}>Settings</button>
             {#if !$isAuthenticated || !$isPro}
                 <ProButton size="sm" on:click={() => {}}>Upgrade to Pro</ProButton>
@@ -375,7 +390,20 @@
                 <button class="absolute top-4 right-4 text-white/40 hover:text-white" aria-label="Close settings" on:click={() => (showSettings = false)}>
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
-                <h2 class="text-xl font-bold mb-4">AI settings</h2>
+                <h2 class="text-xl font-bold mb-4">Settings</h2>
+                <p class="text-xs text-white/40 font-semibold mb-2">Appearance</p>
+                <div class="grid grid-cols-2 gap-2 mb-6">
+                    {#each THEMES as t}
+                        <button
+                            class="text-left px-3 py-2 rounded-lg border text-xs transition-all {$theme === t.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10'}"
+                            on:click={() => theme.set(t.id)}
+                        >
+                            <span class="font-semibold block">{t.label}</span>
+                            <span>{t.blurb}</span>
+                        </button>
+                    {/each}
+                </div>
+                <p class="text-xs text-white/40 font-semibold mb-2">AI</p>
                 <p class="text-xs text-white/40 mb-6 leading-relaxed">
                     Cloud SOAP structuring is included with VetNotes — there is nothing to set up here.
                     If you'd rather run AI usage through your own Google AI account, paste a
@@ -592,10 +620,10 @@
 
 <style>
     .glass-panel {
-        background: #ffffff;
-        border: 1px solid #e3ded2;
-        box-shadow: 0 1px 3px rgba(46, 60, 52, 0.07);
+        background: var(--t-surface, #ffffff);
+        border: 1px solid var(--t-border, #e3ded2);
+        box-shadow: var(--t-panel-shadow, 0 1px 3px rgba(46, 60, 52, 0.07));
     }
     textarea::-webkit-scrollbar { width: 6px; }
-    textarea::-webkit-scrollbar-thumb { background: #d8d3c6; border-radius: 10px; }
+    textarea::-webkit-scrollbar-thumb { background: var(--t-scrollbar, #d8d3c6); border-radius: 10px; }
 </style>
