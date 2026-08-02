@@ -10,7 +10,10 @@
     const navLinks = [
         { label: "Consultation", href: "/", icon: "🩺" },
         { label: "Patients", href: "/patient", icon: "🐾" },
-        { label: "CPD Academy", href: "/cpd", icon: "🎓" },
+        // CPD Academy is unlisted while the module is rebuilt (see
+        // VET/REVENUE_PLAN_2026-08-02.md — 45 confirmed defects, credential
+        // was forgeable). Docs took its slot; /cpd stays behind auth.
+        { label: "Docs", href: "/docs", icon: "📘" },
         { label: "Pricing", href: "/pricing", icon: "💳" },
         { label: "Tickets", href: "/tickets", icon: "🎫" },
         {

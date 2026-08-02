@@ -5,7 +5,8 @@
   import { auth } from '$lib/firebase';
   import { GoogleAuthProvider, signInWithPopup, getIdToken } from 'firebase/auth';
 
-  let redirectTo = '/cpd';
+  // Land on the editor (the actual product), not CPD — which is unlisted.
+  let redirectTo = '/';
   let isLoading = false;
 
   onMount(() => {

@@ -1,8 +1,8 @@
 <script lang="ts">
-  // Honest pricing: only what exists today. The scribe editor and CPD case
-  // library are genuinely free; CPD certification checkout is intentionally
-  // disabled until Stripe env is configured (api/cpd/checkout → 503), so we
-  // say "launching soon" rather than print a price that can't be bought.
+  // Honest pricing: only what exists today. The scribe editor is genuinely
+  // free during beta. CPD Academy is UNLISTED (2026-08-02) — a review found
+  // the credential unsound, so we advertise neither cases nor certification
+  // until it is rebuilt; documentation takes that slot instead.
   // Practice-management plans live (and are purchasable) on vetsorcery.com —
   // we link rather than mirror prices, so the two sites can't drift apart.
   const tiers = [
@@ -22,17 +22,17 @@
       highlight: false
     },
     {
-      name: 'CPD Academy',
-      price: 'Free cases',
-      period: 'certification launching soon',
-      tagline: 'Interactive clinical cases with a verifiable CPD trail.',
+      name: 'Documentation',
+      price: 'Free',
+      period: 'always',
+      tagline: 'How to actually use each app, start to finish.',
       features: [
-        'Completable clinical cases (cardiology, dermatology, surgery)',
-        'Verifiable CPD hour logging',
-        'Case-by-case scoring and feedback',
-        'Paid certification (CPD Pass) launching soon'
+        'Quick start for every app — running in minutes',
+        'Extended walkthroughs of each workflow',
+        'What each product does and does not do',
+        'No sign-in required'
       ],
-      cta: { label: 'Browse CPD cases', href: '/cpd' },
+      cta: { label: 'Read the docs', href: '/docs' },
       secondary: null,
       highlight: true
     },
@@ -58,7 +58,7 @@
   <title>Pricing | VetNotes</title>
   <meta
     name="description"
-    content="VetNotes is free during beta. CPD Academy cases are free with paid certification launching soon. Practice-management plans are on vetsorcery.com."
+    content="VetNotes is free during beta. Documentation is free and open. Practice-management plans are on vetsorcery.com."
   />
 </svelte:head>
 

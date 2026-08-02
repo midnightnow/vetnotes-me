@@ -5,36 +5,37 @@
   import { user } from '$lib/stores/auth';
   import { collection, getDocs, query, where } from 'firebase/firestore';
 
-  // Catalog comes from the server load (adminDb) so anonymous visitors can
-  // browse it — the client-side cpd_sessions read is auth-gated by rules.
-  let { sessions = [] }: { sessions?: CPDSession[] } = $props();
-
   let attendance: CPDAttendance[] = $state([]);
-  let signedIn = $state(false);
-  let attendanceLoaded = $state(false);
+  let sessions: CPDSession[] = $state([]);
+  let loading = $state(true);
 
-  async function loadAttendance(uid: string) {
+  async function loadCatalog(uid: string) {
     try {
       // Attendance MUST be scoped to the current user — an unscoped collection read
       // both leaks other practitioners' records and is denied by the read-own rule.
-      const attendanceSnap = await getDocs(
-        query(collection(db, 'cpd_attendance'), where('user_id', '==', uid))
-      );
+      const [attendanceSnap, sessionsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'cpd_attendance'), where('user_id', '==', uid))),
+        // No orderBy: sessions don't carry created_at, and orderBy would silently
+        // exclude every session that lacks the field (i.e. all of them). Sort client-side.
+        getDocs(collection(db, 'cpd_sessions')),
+      ]);
+
       attendance = attendanceSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as CPDAttendance[];
+      sessions = (sessionsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as CPDSession[]).sort(
+        (a, b) => (a.title || '').localeCompare(b.title || '')
+      );
     } catch (err) {
-      console.error('Failed to fetch CPD attendance', err);
+      console.error('Failed to fetch CPD catalog', err);
     } finally {
-      attendanceLoaded = true;
+      loading = false;
     }
   }
 
   onMount(() => {
-    // Wait for Firebase client auth to resolve before reading progress (the
-    // read-own rules need request.auth). Anonymous visitors still see the
-    // catalog; they just have no completion state and get a sign-in CTA.
+    // Wait for Firebase client auth to resolve before reading (the read-own rules
+    // need request.auth). The /cpd layout already gates access, so a user arrives.
     const unsub = user.subscribe((u) => {
-      signedIn = !!u;
-      if (u && !attendanceLoaded) loadAttendance(u.uid);
+      if (u && loading) loadCatalog(u.uid);
     });
     return unsub;
   });
@@ -72,21 +73,9 @@
     <p class="text-xl text-white/60">Case-based, self-directed CPD modules for modern practitioners.</p>
   </header>
 
-  {#if !signedIn}
-    <div class="mb-8 bg-blue-500/10 border border-blue-500/30 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <p class="text-sm text-white/80">
-        Browse the catalog freely — sign in to start modules, track progress, and earn CPD certificates.
-      </p>
-      <a
-        href="/login?redirectTo=%2Fcpd"
-        class="shrink-0 px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white uppercase tracking-widest transition-all text-center"
-      >
-        Sign in
-      </a>
-    </div>
-  {/if}
-
-  {#if sessions.length === 0}
+  {#if loading}
+    <p class="text-white/60">Loading modules...</p>
+  {:else if sessions.length === 0}
     <div class="bg-white/[0.01] border border-white/5 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center text-center">
       <div class="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
         <span class="text-2xl">Modules</span>
