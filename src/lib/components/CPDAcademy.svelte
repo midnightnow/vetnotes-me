@@ -2,12 +2,14 @@
   import { onMount } from 'svelte';
   import type { CPDAttendance, CPDSession } from '$lib/types/cpd';
   import { db } from '$lib/firebase';
-  import { user } from '$lib/stores/auth';
+  import { user, authLoading } from '$lib/stores/auth';
+  import { get } from 'svelte/store';
   import { collection, getDocs, query, where } from 'firebase/firestore';
 
   let attendance: CPDAttendance[] = $state([]);
   let sessions: CPDSession[] = $state([]);
   let loading = $state(true);
+  let anonymous = $state(false);
 
   async function loadCatalog(uid: string) {
     try {
@@ -33,11 +35,27 @@
 
   onMount(() => {
     // Wait for Firebase client auth to resolve before reading (the read-own rules
-    // need request.auth). The /cpd layout already gates access, so a user arrives.
-    const unsub = user.subscribe((u) => {
-      if (u && loading) loadCatalog(u.uid);
+    // need request.auth). The catalog page is open to anonymous visitors
+    // (free-to-learn): once auth resolves signed-out, stop the spinner and show
+    // the signed-out state instead of waiting forever for a user.
+    // Note: initAuth() sets `user` BEFORE clearing `authLoading`, so gate on
+    // authLoading and read the user snapshot when it flips false.
+    const unsubUser = user.subscribe((u) => {
+      if (u && loading) {
+        anonymous = false;
+        loadCatalog(u.uid);
+      }
     });
-    return unsub;
+    const unsubAuth = authLoading.subscribe((busy) => {
+      if (!busy && !get(user) && loading) {
+        anonymous = true;
+        loading = false;
+      }
+    });
+    return () => {
+      unsubUser();
+      unsubAuth();
+    };
   });
 
   function getHours(session: CPDSession) {
@@ -75,6 +93,16 @@
 
   {#if loading}
     <p class="text-white/60">Loading modules...</p>
+  {:else if anonymous}
+    <div class="bg-white/[0.03] border border-blue-500/30 rounded-3xl p-10 text-center">
+      <div class="text-4xl mb-4">🎓</div>
+      <h3 class="text-2xl font-bold text-white mb-3">Try a free clinical case — no account needed to look around</h3>
+      <p class="text-white/60 mb-6 max-w-xl mx-auto">Case 1 (canine congestive heart failure radiology) is free to learn. Sign in free to start the case, track your progress, and earn CPD hours.</p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <a href="/cpd/cases/case_rad_001_chf" class="px-6 py-3 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold transition-colors">Open Free Case 1</a>
+        <a href="/login?redirectTo=%2Fcpd" class="px-6 py-3 rounded-full border border-white/20 text-white/80 hover:text-white font-semibold transition-colors">Sign in free</a>
+      </div>
+    </div>
   {:else if sessions.length === 0}
     <div class="bg-white/[0.01] border border-white/5 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center text-center">
       <div class="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
