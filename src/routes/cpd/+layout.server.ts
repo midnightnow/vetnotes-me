@@ -1,12 +1,13 @@
-import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = async ({ locals, url }) => {
-  // Ensure the redirect is relative so it respects the active domain (e.g., vetcpd.web.app or localhost)
-  if (!locals.user) {
-    throw redirect(302, `/login?redirectTo=${encodeURIComponent(url.pathname)}`);
-  }
+// /cpd is a marketing + catalog surface: anonymous visitors may browse the
+// module list and free cases. Auth is enforced where it matters instead:
+// certificate/[attendanceId] 401s without a user (and paywalls via
+// hasCpdEntitlement), cases/[caseId] withholds locked case data, and the
+// checkout/scoring +server.ts endpoints verify their own tokens. Redirecting
+// the whole subtree to /login bounced paid traffic off a login wall.
+export const load: LayoutServerLoad = async ({ locals }) => {
   return {
-    user: locals.user
+    user: locals.user ?? null
   };
 };
