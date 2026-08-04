@@ -73,28 +73,75 @@ export interface SubscriptionInfo {
 }
 
 /**
- * Check the user's subscription tier from Firestore.
- * Pro users get cloud structuring, Revenue Hunter, and PIMS sync.
+ * Plans that represent an actual paid subscription.
+ *
+ * MUST stay in sync with VetSorcery's `frontend/src/lib/subscription.ts`
+ * (`PAYING_PLANS`) — that file is the canonical definition and the two products
+ * read the same `plan` claim, so a drift here silently sells or withholds Pro.
+ * `internal_test` is the $1 admin billing probe: a real Stripe charge.
+ */
+const PAYING_PLANS = new Set<string>([
+    'solo_dental', 'starter', 'professional', 'pro', 'enterprise', 'internal_test'
+]);
+
+/** Subscription statuses where access is no longer paid for. */
+const DEAD_STATUSES = new Set<string>(['cancelled', 'payment_failed']);
+
+/**
+ * Check the user's subscription tier.
+ *
+ * Reads the `plan` **custom auth claim**, which is the canonical paid-state
+ * signal across VetSorcery: it is set server-side by `stripeWebhook.ts`,
+ * carried forward by `/ensure-claims`, and revoked on cancellation. Because it
+ * is server-set it cannot be forged from the client, and it costs no Firestore
+ * read.
+ *
+ * FIXED 2026-08-04: this previously read `users/{uid}.subscription.tier` /
+ * `.subscriptionTier`. **Nothing has ever written either field** — the webhook
+ * writes `plan` on the user doc and `subscription.plan` on the clinic doc — so
+ * every user on earth resolved to 'free' and `pimsSync` was permanently false.
+ * "Sync to PIMS" was locked for paying customers, which is why no note has ever
+ * synced. The clinic-record read below is a fallback for sessions whose token
+ * predates the claim; refreshing the ID token is the fast path.
  */
 export async function getSubscriptionInfo(): Promise<SubscriptionInfo> {
     const user = auth.currentUser;
     if (!user) return FREE_TIER;
 
     try {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (!userDoc.exists()) return FREE_TIER;
+        const token = await user.getIdTokenResult();
+        let plan = typeof token.claims.plan === 'string' ? token.claims.plan : null;
+        let status: string | null = null;
 
-        const data = userDoc.data();
-        const tier = (data.subscription?.tier || data.subscriptionTier || 'free') as SubscriptionTier;
+        // Fallback: a token minted before the plan claim existed. Resolve from
+        // the clinic's subscription record, which the webhook does write.
+        if (!plan) {
+            const clinic = await resolveClinicContext();
+            if (clinic?.clinicId) {
+                const clinicDoc = await getDoc(doc(db, 'clinics', clinic.clinicId));
+                const sub = clinicDoc.data()?.subscription;
+                plan = typeof sub?.plan === 'string' ? sub.plan : null;
+                status = typeof sub?.status === 'string' ? sub.status : null;
+            }
+        }
+
+        const paid = !!plan && PAYING_PLANS.has(plan) && !(status && DEAD_STATUSES.has(status));
+        if (!paid) return FREE_TIER;
+
+        // 'enterprise' is the only tier that means more than "paid" to VetNotes.
+        const tier: SubscriptionTier = plan === 'enterprise' ? 'enterprise' : 'pro';
+
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const data = userDoc.exists() ? userDoc.data() : {};
 
         return {
             tier,
             aivaApiKey: data.aivaApiKey || data.geminiApiKey || undefined,
             features: {
-                cloudStructuring: tier !== 'free',
-                revenueHunter: tier !== 'free',
-                pimsSync: tier !== 'free',
-                allTemplates: tier !== 'free'
+                cloudStructuring: true,
+                revenueHunter: true,
+                pimsSync: true,
+                allTemplates: true
             }
         };
     } catch (error) {
@@ -149,15 +196,25 @@ export async function syncSOAPToVetSorcery(
     }
 
     try {
-        // Determine the correct Firestore path.
-        // Try tenant-scoped path (new VetSorcery schema: tenants/{clinicId}/...)
-        // with a fallback to clinic-scoped path (legacy: clinics/{clinicId}/...)
-        const patientSegment = options.patientId
-            ? `patients/${options.patientId}/medical_records`
-            : 'medical_records';
-
-        const tenantPath = `tenants/${clinic.clinicId}/${patientSegment}`;
-        const clinicPath = `clinics/${clinic.clinicId}/${patientSegment}`;
+        // ONE canonical destination: clinics/{clinicId}/medical_records.
+        //
+        // FIXED 2026-08-04. This previously tried `tenants/{c}/patients/{p}/…`
+        // first and fell back to a clinic path only when that write threw, which
+        // produced a note that was either visible or billable but never both:
+        //   • with a patientId the tenant write SUCCEEDED (firestore.rules:519
+        //     allows it), so the note landed somewhere /vetnotes does not read —
+        //     `VetNotesPageClient` queries clinics/{c}/medical_records — and the
+        //     clinician saw an empty inbox;
+        //   • without one the tenant write was denied (no rule matches
+        //     tenants/{c}/medical_records), so it fell through to the clinic
+        //     path, where the SOAP billing triggers — bound to
+        //     `.../patients/{patientId}/medical_records` — never fired, so the
+        //     staged charges were silently dropped.
+        // The clinic-level collection is covered by the generic
+        // `clinics/{clinicId}/{subcollection}/{docId}` create rule, is what the
+        // page reads, and carries `patientId` as a FIELD so the record still
+        // links to a patient without hiding under one.
+        const clinicPath = `clinics/${clinic.clinicId}/medical_records`;
 
         const record = {
             // SOAP content
@@ -204,16 +261,12 @@ export async function syncSOAPToVetSorcery(
             reviewed: false
         };
 
-        let recordRef;
-        try {
-            // Try tenant-scoped path first
-            const pathParts = tenantPath.split('/');
-            recordRef = await addDoc(collection(db, pathParts[0], ...pathParts.slice(1)), record);
-        } catch {
-            // Fallback to clinic-scoped path
-            const pathParts = clinicPath.split('/');
-            recordRef = await addDoc(collection(db, pathParts[0], ...pathParts.slice(1)), record);
-        }
+        // No try/catch around the write: a failure must reach the outer handler
+        // (which falls back to personal records on permission-denied and returns
+        // an honest error otherwise). The old inner `catch {}` swallowed the real
+        // reason a sync failed and made every failure look like a path problem.
+        const pathParts = clinicPath.split('/');
+        const recordRef = await addDoc(collection(db, pathParts[0], ...pathParts.slice(1)), record);
 
         return {
             success: true,
