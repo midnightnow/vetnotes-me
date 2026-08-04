@@ -170,8 +170,15 @@ export interface SyncResult {
 
 /**
  * Sync a SOAP note to VetSorcery's Firestore.
- * Writes to clinics/{clinicId}/medical_records/ so it appears
- * in the patient timeline on VetSorcery.
+ *
+ * Writes to `tenants/{clinicId}/patients/{patientId}/medical_records` — the
+ * cross-app integration layer VetNotes.me owns. See
+ * `vetsorcery-core/docs/TENANT_ARCHITECTURE.md`: the dual `/clinics/` +
+ * `/tenants/` tree is CANONICAL DESIGN, not a bug, and that document opens by
+ * noting it "has been incorrectly 'fixed' 10+ times" by people who assumed
+ * otherwise. `/tenants/` is where external apps write; `/clinics/` is for notes
+ * created inside the PMS. It is also the path the deployed SOAP billing trigger
+ * binds to, so writing here is what makes a note billable.
  */
 export async function syncSOAPToVetSorcery(
     note: SOAPNote,
@@ -196,25 +203,23 @@ export async function syncSOAPToVetSorcery(
     }
 
     try {
-        // ONE canonical destination: clinics/{clinicId}/medical_records.
+        // Destination, in priority order. `/tenants/` is VetNotes.me's own
+        // integration layer (TENANT_ARCHITECTURE.md) and the path the deployed
+        // SOAP billing trigger binds to, so a patient-scoped tenant write is
+        // both correct and billable.
         //
-        // FIXED 2026-08-04. This previously tried `tenants/{c}/patients/{p}/…`
-        // first and fell back to a clinic path only when that write threw, which
-        // produced a note that was either visible or billable but never both:
-        //   • with a patientId the tenant write SUCCEEDED (firestore.rules:519
-        //     allows it), so the note landed somewhere /vetnotes does not read —
-        //     `VetNotesPageClient` queries clinics/{c}/medical_records — and the
-        //     clinician saw an empty inbox;
-        //   • without one the tenant write was denied (no rule matches
-        //     tenants/{c}/medical_records), so it fell through to the clinic
-        //     path, where the SOAP billing triggers — bound to
-        //     `.../patients/{patientId}/medical_records` — never fired, so the
-        //     staged charges were silently dropped.
-        // The clinic-level collection is covered by the generic
-        // `clinics/{clinicId}/{subcollection}/{docId}` create rule, is what the
-        // page reads, and carries `patientId` as a FIELD so the record still
-        // links to a patient without hiding under one.
-        const clinicPath = `clinics/${clinic.clinicId}/medical_records`;
+        // An unlinked note (no patientId) has no tenant home — no rule matches
+        // `tenants/{c}/medical_records` — so it goes clinic-level, which the
+        // page reads and which the clinic-level triggers added on 2026-08-04
+        // now stage charges from.
+        //
+        // Earlier today I rerouted ALL writes here to clinic-level, reasoning
+        // that the page only read `clinics/`. That was wrong twice over: the
+        // page has since learned to read both trees, and TENANT_ARCHITECTURE.md
+        // exists precisely because this "fix" keeps getting made. Reverted.
+        const path = options.patientId
+            ? `tenants/${clinic.clinicId}/patients/${options.patientId}/medical_records`
+            : `clinics/${clinic.clinicId}/medical_records`;
 
         const record = {
             // SOAP content
@@ -265,7 +270,7 @@ export async function syncSOAPToVetSorcery(
         // (which falls back to personal records on permission-denied and returns
         // an honest error otherwise). The old inner `catch {}` swallowed the real
         // reason a sync failed and made every failure look like a path problem.
-        const pathParts = clinicPath.split('/');
+        const pathParts = path.split('/');
         const recordRef = await addDoc(collection(db, pathParts[0], ...pathParts.slice(1)), record);
 
         return {
