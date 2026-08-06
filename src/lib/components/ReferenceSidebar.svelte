@@ -1,12 +1,24 @@
 <script lang="ts">
     import { parseWeightFromText, toKg } from "$lib/utils/weightParser";
+    import {
+        detectSpecies,
+        shouldShowCard,
+        type DetectedSpecies,
+    } from "$lib/utils/speciesDetector";
     import ReferenceCard from "./ReferenceCard.svelte";
 
     export let transcript: string = "";
 
     // State
     let patientWeight: number = 0;
-    let species: "canine" | "feline" = "canine";
+    // Never default to a species. "unknown" shows BOTH species' cards rather than
+    // silently filtering one out — suppressing a toxicity alert is the dangerous
+    // failure, an extra clearly-labelled card is not.
+    let species: DetectedSpecies = "unknown";
+    // Once the clinician picks a species by hand, auto-detection must stop
+    // overwriting it. Previously every transcript update (300ms debounce) clobbered
+    // the manual choice.
+    let speciesLockedByUser: boolean = false;
     let studyMode: boolean = false;
     let isWeightLocked: boolean = false;
     let lastWeightUpdate: number = 0;
@@ -168,16 +180,16 @@
             }
         }
 
-        // 2. Detect Species
-        if (lowerText.includes("cat") || lowerText.includes("feline")) {
-            species = "feline";
-        } else if (lowerText.includes("dog") || lowerText.includes("canine")) {
-            species = "canine";
+        // 2. Detect Species — whole-word + breed aware, never defaulting.
+        //    A manual selection always wins over auto-detection.
+        if (!speciesLockedByUser) {
+            species = detectSpecies(text);
         }
 
-        // 3. Match Cards
+        // 3. Match Cards. On unknown species, cards for BOTH species are shown
+        //    (each card is individually labelled) rather than filtered away.
         const matches = REFERENCE_DB.filter((card) => {
-            if (card.species && !card.species.includes(species)) return false;
+            if (!shouldShowCard(card.species, species)) return false;
             return card.triggers.some((regex) => regex.test(lowerText));
         });
         activeCards = matches.slice(0, 5);
@@ -206,21 +218,55 @@
 
         <div class="flex bg-black/40 rounded-lg p-0.5 border border-white/10">
             <button
-                class="px-2 py-0.5 rounded text-[8px] font-black uppercase {species ===
-                'canine'
-                    ? 'bg-blue-600'
+                title="Detect species from the consultation automatically"
+                class="px-2 py-0.5 rounded text-[8px] font-black uppercase {!speciesLockedByUser
+                    ? 'bg-white/20 text-white'
                     : 'text-white/40'}"
-                on:click={() => (species = "canine")}>Canine</button
+                on:click={() => {
+                    speciesLockedByUser = false;
+                    species = detectSpecies(transcript);
+                }}>Auto</button
             >
             <button
-                class="px-2 py-0.5 rounded text-[8px] font-black uppercase {species ===
-                'feline'
+                class="px-2 py-0.5 rounded text-[8px] font-black uppercase {speciesLockedByUser &&
+                species === 'canine'
+                    ? 'bg-blue-600'
+                    : 'text-white/40'}"
+                on:click={() => {
+                    species = "canine";
+                    speciesLockedByUser = true;
+                }}>Canine</button
+            >
+            <button
+                class="px-2 py-0.5 rounded text-[8px] font-black uppercase {speciesLockedByUser &&
+                species === 'feline'
                     ? 'bg-purple-600'
                     : 'text-white/40'}"
-                on:click={() => (species = "feline")}>Feline</button
+                on:click={() => {
+                    species = "feline";
+                    speciesLockedByUser = true;
+                }}>Feline</button
             >
         </div>
     </div>
+
+    {#if species === "unknown"}
+        <!-- Say so out loud. Silently assuming a species is how a cat gets dog
+             protocols; showing both species' cards is safe only if the clinician
+             knows that is what they are looking at. -->
+        <div
+            class="mx-2 mb-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30"
+        >
+            <p
+                class="text-[9px] font-black uppercase tracking-tight text-amber-400"
+            >
+                Species not identified
+            </p>
+            <p class="text-[9px] text-amber-200/70 leading-snug mt-0.5">
+                Showing canine and feline references. Select a species to filter.
+            </p>
+        </div>
+    {/if}
 
     <div class="px-2 mb-4 space-y-2">
         <button

@@ -8,13 +8,17 @@
     "build": "vite build",
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check": "npm run check:sdk && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "deploy:mvp": "echo 'vetnotes.me is SSR now — hosting rewrites ** to Cloud Run vetnotes-cpd-ssr. Use deploy:ssr (app) or deploy:ssr-hosting (rewrite config).' && exit 1",
-    "deploy:ssr": "gcloud run deploy vetnotes-cpd-ssr --source . --region australia-southeast1 --project vetnotes-mvp --allow-unauthenticated --memory 512Mi --port 8080 --update-env-vars GOOGLE_CLOUD_PROJECT=vetsorcery --quiet",
+    "deploy:mvp": "echo 'vetnotes.me is SSR now \u2014 hosting rewrites ** to Cloud Run vetnotes-cpd-ssr. Use deploy:ssr (app) or deploy:ssr-hosting (rewrite config).' && exit 1",
+    "deploy:ssr": "npm run predeploy:check && gcloud run deploy vetnotes-cpd-ssr --source . --region australia-southeast1 --project vetnotes-mvp --allow-unauthenticated --memory 512Mi --port 8080 --update-env-vars GOOGLE_CLOUD_PROJECT=vetsorcery --quiet",
     "deploy:ssr-hosting": "firebase deploy -P mvp --only hosting:ssr",
     "deploy:pro": "npm run build && firebase deploy -P pro --only hosting:production",
-    "deploy:vetcpd": "npm run build && firebase deploy -P pro --only hosting:vetcpd"
+    "deploy:vetcpd": "echo 'REMOVED: the vetcpd hosting site is owned by apps/vetcpd-academy (a different repo AND Firebase project). Running this published this repo stale vetcpd-dist/ over the live CPD Academy. Deploy from vetcpd-academy instead.' && exit 1",
+    "predeploy:check": "bash scripts/ops/require-clean-tree.sh",
+    "check:sdk": "node scripts/ops/check-sdk-resolves.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "^5.5.7",
@@ -36,7 +40,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@vetsorcery/sdk": "file:../../SDK/packages/typescript",
+    "@vetsorcery/sdk": "file:../../VET-ECOSYSTEM/SDK/packages/typescript",
     "@xenova/transformers": "^2.17.2",
     "dayjs": "^1.11.19",
     "firebase": "^11.10.0",
