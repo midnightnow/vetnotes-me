@@ -128,13 +128,20 @@ function extractObjective(text: string): string {
         if (match) findings.push(match[0]);
     }
 
-    // Inference: if no explicit vitals but vet implies normal exam
+    // NEVER infer an examination from narrative adjectives.
+    //
+    // This block previously returned "General physical exam: No abnormalities
+    // detected on systems examined." whenever the transcript merely contained a
+    // word like "bright", "fine" or "alert" — so an owner saying "he's been
+    // bright at home" (subjective history) caused the Objective section of a
+    // legal medical record to assert that an examination was performed and was
+    // normal. The fallback branch asserted "Physical exam performed" outright.
+    //
+    // Both fabricated clinical findings. Objective must contain only what was
+    // actually narrated; absence is reported as absence, matching
+    // extractSubjective's "Not recorded." convention.
     if (findings.length === 0) {
-        const normalIndicators = /(?:healthy|normal|unremarkable|fine|good condition|bright|alert|responsive|wnl|within normal|no abnormalities)/i;
-        if (normalIndicators.test(text)) {
-            return 'General physical exam: No abnormalities detected on systems examined. Specific vitals not narrated.';
-        }
-        return 'Physical exam performed. Vitals: Not narrated.';
+        return 'Not recorded.';
     }
 
     return findings.join('. ') + '.';

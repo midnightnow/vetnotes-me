@@ -10,6 +10,33 @@ import { CpdGovernor } from '$lib/server/cpd_governor';
 export const load = async ({ params }: any) => {
   const { recordId } = params;
 
+  // A certificate prints `verification_url` = /verify/{verification_code}, and the
+  // code lives on a `cpd_certificates` doc. This route only ever looked in
+  // `cpd_attendance`, whose ids are `att_user_{uid}_sess_{id}` — a disjoint
+  // collection with a disjoint id grammar — so EVERY issued certificate's own
+  // printed URL resolved to "No record found". Check certificates first, then fall
+  // back to attendance so completion-record links issued before this fix still work.
+  const certQuery = await adminDb
+    .collection('cpd_certificates')
+    .where('verification_code', '==', recordId)
+    .limit(1)
+    .get();
+
+  if (!certQuery.empty) {
+    const cert = certQuery.docs[0].data() as any;
+    return {
+      valid: true,
+      recordId,
+      holder: cert.recipient_name || 'Veterinary Practitioner',
+      module: cert.module_id || 'CPD Activity',
+      hours: cert.hours_awarded,
+      completedAt: cert.issued_at,
+      provider: cert.provider_name,
+      providerCode: cert.provider_veted_code,
+      audit: null
+    };
+  }
+
   const snap = await adminDb.collection('cpd_attendance').doc(recordId).get();
   if (!snap.exists) return { valid: false, recordId };
 

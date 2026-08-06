@@ -13,9 +13,8 @@
  * of the certificate ("pay to certify"). Default pricing model = one-off pass
  * (lifetime, no expiry); set `CPD_CHECKOUT_MODE=subscription` for a recurring one.
  */
-import { adminDb } from '$lib/server/firebase-admin';
-
-const PAID_TIERS = new Set(['pro', 'enterprise', 'starter']);
+import { adminAuth, adminDb } from '$lib/server/firebase-admin';
+import { isPaidPlan } from '$lib/constants/plans';
 
 export interface GrantMeta {
   source: string;
@@ -26,16 +25,67 @@ export interface GrantMeta {
   email?: string;
 }
 
+/**
+ * Does this user hold a paid VetSorcery subscription?
+ *
+ * Reads the same signal the Stripe webhook actually writes, in descending order
+ * of authority. Every lookup is wrapped: a transient auth/Firestore failure must
+ * not be reported as "not paid" without at least trying the next source.
+ */
+async function hasPaidSubscription(userId: string): Promise<boolean> {
+  // (a) Server-set custom auth claim — canonical and unforgeable.
+  try {
+    const rec = await adminAuth.getUser(userId);
+    const claims = (rec.customClaims || {}) as Record<string, unknown>;
+    if (isPaidPlan(claims.plan)) return true;
+  } catch {
+    /* fall through to the document sources */
+  }
+
+  // (b) The user document, which the webhook also writes.
+  let clinicId: string | undefined;
+  try {
+    const userSnap = await adminDb.collection('users').doc(userId).get();
+    if (userSnap.exists) {
+      const data = userSnap.data() || {};
+      if (isPaidPlan(data.plan)) return true;
+      clinicId = typeof data.clinicId === 'string' ? data.clinicId : undefined;
+    }
+  } catch {
+    /* fall through */
+  }
+
+  // (c) The clinic record — the billable unit is the clinic, so a seat user whose
+  //     own token predates the claim still resolves correctly here.
+  if (clinicId) {
+    try {
+      const clinicSnap = await adminDb.collection('clinics').doc(clinicId).get();
+      const sub = clinicSnap.data()?.subscription;
+      if (isPaidPlan(sub?.plan, sub?.status)) return true;
+    } catch {
+      /* fall through */
+    }
+  }
+
+  return false;
+}
+
 export async function hasCpdEntitlement(userId: string): Promise<boolean> {
   if (!userId) return false;
 
-  // 1. Bundled with a paid subscription tier.
-  const userSnap = await adminDb.collection('users').doc(userId).get();
-  if (userSnap.exists) {
-    const data = userSnap.data() || {};
-    const tier = (data.subscription?.tier || data.subscriptionTier || 'free') as string;
-    if (PAID_TIERS.has(tier)) return true;
-  }
+  // 1. Bundled with a paid subscription.
+  //
+  // FIXED: this previously read `users/{uid}.subscription.tier` /
+  // `.subscriptionTier`. **Nothing has ever written either field.** VetSorcery's
+  // `stripeWebhook.ts` writes the `plan` custom auth claim, `users/{uid}.plan`,
+  // and `clinics/{id}.subscription.plan`. So this branch returned false for every
+  // practitioner who has ever existed, and a clinic on a paid VetSorcery plan was
+  // paywalled after passing a case. The sibling client gate
+  // (`services/vetsorcery.ts`) was corrected on 2026-08-04; this copy was missed.
+  //
+  // Resolution order mirrors that fix: server-set claim first (canonical, forgery
+  // -proof, no Firestore read), then the user doc, then the clinic record.
+  if (await hasPaidSubscription(userId)) return true;
 
   // 2. CPD Pass — active and (if time-boxed) not expired.
   const entSnap = await adminDb.collection('cpd_entitlements').doc(userId).get();

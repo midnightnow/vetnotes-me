@@ -5,6 +5,7 @@
  */
 import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '$lib/firebase';
+import { PAYING_PLANS, DEAD_STATUSES } from '$lib/constants/plans';
 import type { SOAPNote } from '$lib/types';
 
 // ─── Clinic Context ───────────────────────────────────────────────────────────
@@ -72,20 +73,10 @@ export interface SubscriptionInfo {
     };
 }
 
-/**
- * Plans that represent an actual paid subscription.
- *
- * MUST stay in sync with VetSorcery's `frontend/src/lib/subscription.ts`
- * (`PAYING_PLANS`) — that file is the canonical definition and the two products
- * read the same `plan` claim, so a drift here silently sells or withholds Pro.
- * `internal_test` is the $1 admin billing probe: a real Stripe charge.
- */
-const PAYING_PLANS = new Set<string>([
-    'solo_dental', 'starter', 'professional', 'pro', 'enterprise', 'internal_test'
-]);
-
-/** Subscription statuses where access is no longer paid for. */
-const DEAD_STATUSES = new Set<string>(['cancelled', 'payment_failed']);
+// Paid-plan vocabulary lives in `$lib/constants/plans` (imported at the top of
+// this file) so this client gate and the server certificate gate
+// (`server/cpd_entitlement.ts`) cannot disagree — they already had, and it
+// paywalled paying clinics.
 
 /**
  * Check the user's subscription tier.
