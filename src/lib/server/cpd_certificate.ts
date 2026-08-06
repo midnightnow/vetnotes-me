@@ -8,6 +8,7 @@
  * lazy "pay then retrieve" path, where the certificate was withheld at
  * grading time because the user was not yet entitled.
  */
+import { randomUUID } from 'node:crypto';
 import { adminDb } from '$lib/server/firebase-admin';
 import { SCHEMA_VERSION } from '$lib/types/cpd_scoring_spec';
 import type { CPDAttempt } from '$lib/types/cpd';
@@ -23,11 +24,29 @@ export interface CPDCertificate {
   hours_awarded: number;
   schema_version: string;
   issued_at: string;
+  /**
+   * Unguessable public handle for this certificate. The URL below is printed on
+   * the certificate and handed to employers and registration boards, so it must
+   * NOT be the document id: `certIdFor` is deterministic in the holder's Firebase
+   * UID, which would let anyone holding a UID enumerate that practitioner's
+   * entire CPD history. Generated once at issuance and stable thereafter.
+   */
+  verification_code: string;
   verification_url: string;
 }
 
+/**
+ * Deterministic document id — this is what makes issuance idempotent
+ * (`issueCertificate` returns the existing doc rather than minting a duplicate).
+ * It is deliberately NOT the public verification handle; see `verification_code`.
+ */
 export function certIdFor(userId: string, attempt: Pick<CPDAttempt, 'case_id' | 'attempt_version'>): string {
   return `cert_${userId}_${attempt.case_id}_v${attempt.attempt_version}`;
+}
+
+/** URL-safe, unguessable public verification handle. */
+function newVerificationCode(): string {
+  return `vn${randomUUID().replace(/-/g, '')}`;
 }
 
 export function buildCertificate(
@@ -40,10 +59,24 @@ export function buildCertificate(
   const providerName = caseData?.provider_name || 'VetNotes CPD';
   const providerCode = caseData?.provider_code || 'VN-CPD-2026';
   const activityCode = caseData?.activity_code || attempt.case_id;
-  // Single source of truth for hours: the case's own `hours` field (the value the
-  // learner saw). `hours_awarded` kept as a legacy fallback; 1.0 is a last resort.
-  const hoursAwarded = caseData?.hours ?? caseData?.hours_awarded ?? 1.0;
+
+  // Hours are a REGULATED claim — a practitioner submits this number to a
+  // registration board. It must come from the case the learner actually sat.
+  //
+  // This previously fell back to `1.0` "as a last resort", so a case missing its
+  // `hours` field silently minted a certificate asserting one hour of CPD that
+  // nothing backed. Refuse instead: failing to issue is recoverable, issuing a
+  // fabricated hours claim is not.
+  const hoursAwarded = caseData?.hours ?? caseData?.hours_awarded;
+  if (typeof hoursAwarded !== 'number' || !Number.isFinite(hoursAwarded) || hoursAwarded <= 0) {
+    throw new Error(
+      `Refusing to issue a CPD certificate for case "${attempt.case_id}": the case document ` +
+        `defines no positive \`hours\` value, so the CPD hours claim would be fabricated.`
+    );
+  }
+
   const verificationBase = caseData?.verification_url || 'https://vetnotes.me/verify';
+  const verificationCode = newVerificationCode();
 
   return {
     id: certId,
@@ -56,7 +89,9 @@ export function buildCertificate(
     hours_awarded: hoursAwarded,
     schema_version: SCHEMA_VERSION,
     issued_at: new Date().toISOString(),
-    verification_url: `${verificationBase}/${certId}`
+    verification_code: verificationCode,
+    // Public handle, NOT the document id — see `verification_code`.
+    verification_url: `${verificationBase}/${verificationCode}`
   };
 }
 

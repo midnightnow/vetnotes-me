@@ -11,6 +11,7 @@
         { label: "Consultation", href: "/", icon: "🩺" },
         { label: "Patients", href: "/patient", icon: "🐾" },
         { label: "CPD Academy", href: "/cpd", icon: "🎓" },
+        { label: "Pricing", href: "/pricing", icon: "💳" },
         { label: "Tickets", href: "/tickets", icon: "🎫" },
         {
             label: "AIVA",

@@ -1,4 +1,8 @@
-import dermLeaderSchema from '../schemas/dermatology-leader-format-v1.json';
+// Schema bundled at build time via vite ?raw — a runtime readFileSync with an
+// import.meta.url-relative path pointed at .svelte-kit/output/... where the
+// JSON is never copied, so every clean `gcloud --source` build crashed in
+// SvelteKit's postbuild analyse step (third broken-at-commit class, 2026-07-17).
+import schemaRaw from '$lib/schemas/dermatology-leader-format-v1.json?raw';
 
 const REQUIRED_FIELDS = [
   'diet_trial_duration_weeks',

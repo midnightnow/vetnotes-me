@@ -178,7 +178,11 @@ describe('AIVA SOAP Structuring Service', () => {
         it('handles empty string input', () => {
             const result = structureLocally('');
             expect(result.subjective).toBe('Not recorded.');
-            expect(result.objective).toContain('Physical exam performed.');
+            // This assertion previously required `objective` to contain
+            // "Physical exam performed." for an EMPTY transcript — i.e. the suite
+            // codified the fabrication. An empty consultation must never produce a
+            // record claiming an examination took place.
+            expect(result.objective).toBe('Not recorded.');
             expect(result.assessment).toBe('Pending.');
             expect(result.plan).toBe('Plan to be finalized.');
             expect(result.missedCharges).toEqual([]);
@@ -188,6 +192,50 @@ describe('AIVA SOAP Structuring Service', () => {
             const result = structureLocally('Hello world this is just random text.');
             expect(result.subjective).toBe('Not recorded.');
             expect(result.assessment).toBe('Pending.');
+        });
+
+        // ─── Fabrication guards ─────────────────────────────────────────
+        //
+        // The regex fallback used to infer a physical examination from narrative
+        // adjectives: any transcript containing "bright", "fine", "alert",
+        // "healthy", "normal", "unremarkable" etc. produced
+        //   "General physical exam: No abnormalities detected on systems examined."
+        // in the OBJECTIVE section — a fabricated clinical finding in a legal
+        // medical record. The alternate branch asserted "Physical exam performed."
+        // even when nothing had been examined.
+        //
+        // Objective must contain only what was actually narrated.
+        describe('never fabricates a physical examination', () => {
+            const OWNER_REPORTED = [
+                "He's been bright at home.",
+                'Owner reports she seems fine.',
+                'The dog has been alert and responsive all week.',
+                'Owner says he is healthy and in good condition.',
+                'Everything seemed normal according to the owner.',
+                'History unremarkable per owner.'
+            ];
+
+            it.each(OWNER_REPORTED)(
+                'does not claim an exam was performed for: %s',
+                (text) => {
+                    const objective = structureLocally(text).objective;
+                    expect(objective).not.toContain('No abnormalities detected');
+                    expect(objective).not.toContain('systems examined');
+                    expect(objective).not.toContain('Physical exam performed');
+                }
+            );
+
+            it('reports absence as absence when no vitals are narrated', () => {
+                expect(structureLocally("He's been bright at home.").objective).toBe(
+                    'Not recorded.'
+                );
+            });
+
+            it('still records vitals that WERE actually narrated', () => {
+                const objective = structureLocally('HR: 120, RR: 30, temp: 38.5').objective;
+                expect(objective).toContain('120');
+                expect(objective).not.toBe('Not recorded.');
+            });
         });
 
         it('handles multiple subjective findings', () => {

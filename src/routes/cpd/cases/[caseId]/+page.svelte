@@ -36,6 +36,9 @@
   let certificateError = $state('');
   let paywallRequired = $state(false);
   let checkoutError = $state('');
+  // Anonymous visitors can view the free case shell; starting an attempt needs
+  // a (free) account — surface a sign-in CTA instead of a raw 401.
+  let needsSignIn = $state(false);
 
   onMount(async () => {
     await initCpdAttempt();
@@ -51,9 +54,13 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ caseId: data.caseId })
       });
+      if (res.status === 401) {
+        needsSignIn = true;
+        return;
+      }
       const result = await res.json();
       if (!res.ok) throw new Error(result.message || 'Failed to start attempt');
-      
+
       attempt = result.attempt;
       currentStep = attempt!.current_step;
       
@@ -319,6 +326,12 @@
         <span class:active={currentStep === 'COMPLETED'}>4. Result</span>
       </div>
     </header>
+
+    {#if needsSignIn}
+      <div class="alert" style="background: #ecfdf5; border: 1px solid #10b981; color: #065f46; padding: 14px 16px; border-radius: 10px; margin-bottom: 16px;">
+        This case is free — <a href={`/login?redirectTo=${encodeURIComponent(`/cpd/cases/${data.caseId}`)}`} style="font-weight: 700; text-decoration: underline;">sign in free</a> to start it and track your progress.
+      </div>
+    {/if}
 
     {#if errorMessage}
       <div class="alert error-alert">{errorMessage}</div>

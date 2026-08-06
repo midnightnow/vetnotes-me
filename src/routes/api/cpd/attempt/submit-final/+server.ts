@@ -4,6 +4,13 @@ import { markCaseCompleted } from '$lib/server/cpd_attendance';
 import { hasCpdEntitlement } from '$lib/server/cpd_entitlement';
 import { issueCertificate } from '$lib/server/cpd_certificate';
 import { CpdGovernor } from '$lib/server/cpd_governor';
+import {
+  evaluateQuality,
+  evaluateStructuredInterpretation,
+  evaluatePatternRecognition,
+  evaluateClinicalDecision,
+  evaluateErrorDetection
+} from '$lib/server/cpd_scoring';
 import { CPD_SCORING_SPEC, SCHEMA_VERSION } from '$lib/types/cpd_scoring_spec';
 import type { CPDAttempt, CPDSecureCaseData, CompetencyId } from '$lib/types/cpd';
 
@@ -147,55 +154,6 @@ export const POST = async ({ request, locals }: any) => {
   });
 };
 
-// ==========================================
-// SCORING LOGIC HELPERS (Server Side Only)
-// ==========================================
+// Scoring helpers now live in `$lib/server/cpd_scoring` — pure, unit-tested, and
+// auditable, because they decide whether a CPD credential is issued.
 
-// TODO: Replace with rubric-based clinical evaluation model
-// Current implementation is simplified heuristic logic (NOT accreditation-grade)
-// Used for MVP validation only, not for external CPD submission accuracy
-function evaluateQuality(notes?: string): number {
-  if (!notes || notes.trim().length < 15) return 0.0;
-  return 1.0;
-}
-
-// TODO: Replace with rubric-based clinical evaluation model
-// Current implementation is simplified heuristic logic (NOT accreditation-grade)
-// Used for MVP validation only, not for external CPD submission accuracy
-function evaluateStructuredInterpretation(reasoning: any, requiredFields?: string[]): number {
-  if (!reasoning || !reasoning.quality_assessment_notes || !reasoning.abnormalities_identified) return 0.0;
-  return 1.0;
-}
-
-// TODO: Replace with rubric-based clinical evaluation model
-// Current implementation is simplified heuristic logic (NOT accreditation-grade)
-// Used for MVP validation only, not for external CPD submission accuracy
-function evaluatePatternRecognition(differential?: string, keywords?: string[]): number {
-  if (!differential || !keywords) return 0.0;
-  const normalized = differential.toLowerCase();
-  const matched = keywords.some(kw => normalized.includes(kw.toLowerCase()));
-  return matched ? 1.0 : 0.0;
-}
-
-function evaluateClinicalDecision(userResponses: any[], secureAnswers: any[]): number {
-  let correct = 0;
-  userResponses.forEach((res: any) => {
-    const key = secureAnswers.find((ans: any) => ans.question_id === res.question_id);
-    if (key && key.correct_option_index === res.selected_option_index) {
-      correct++;
-    }
-  });
-  return secureAnswers.length > 0 ? correct / secureAnswers.length : 1.0;
-}
-
-function evaluateErrorDetection(userDetections: any[], secureSeededErrors: any[]): number {
-  if (!userDetections || secureSeededErrors.length === 0) return 0.0;
-  let detectedCount = 0;
-  secureSeededErrors.forEach((seeded: any) => {
-    const userAns = userDetections.find((det: any) => det.seeded_error_id === seeded.id);
-    if (userAns && userAns.did_user_detect === true) {
-      detectedCount++;
-    }
-  });
-  return detectedCount / secureSeededErrors.length;
-}

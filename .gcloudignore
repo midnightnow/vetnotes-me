@@ -1,0 +1,59 @@
+# Upload manifest for `gcloud run deploy --source .` (deploy:ssr).
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# Without a .gcloudignore, gcloud falls back to .gitignore. That had two effects,
+# one merely wasteful and one actively misleading:
+#
+#  1. Every dirty tracked file and every untracked non-ignored file in the working
+#     tree was uploaded. The deploy artifact was therefore derived from whatever
+#     happened to be on disk, not from any commit — so the reviewed code and the
+#     shipped bytes were unrelated. `deploy:ssr` now refuses to run on a dirty
+#     tree (scripts/ops/require-clean-tree.sh); this file bounds what ships even
+#     when that gate is deliberately overridden.
+#
+#  2. `.gitignore` un-ignores `.env.production` (`!.env.production`), which is
+#     REQUIRED — it carries the public Firebase web config that the client bundle
+#     must bake. That un-ignore is preserved explicitly below. Do not "tidy" it
+#     away: dropping it produces a build with no Firebase config and auth dies.
+#
+# `.env` (real secrets, e.g. VITE_GEMINI_API_KEY) stays excluded. It is a
+# build-time Vite variable, so baking it would publish the key in client JS;
+# server-side key handling is the correct fix, not uploading this file.
+
+.git
+.gitignore
+node_modules
+
+# Build outputs — the container rebuilds these from source.
+.svelte-kit
+build
+build-ssr
+.output
+.vercel
+.netlify
+.wrangler
+vetcpd-dist
+ssr-public
+
+# Local tooling / caches
+.firebase
+.DS_Store
+Thumbs.db
+*.log
+coverage
+.vscode
+.idea
+
+# Tests and local-only config: not needed at runtime, and keeping them out makes
+# the uploaded source match what actually runs.
+**/*.test.ts
+vitest.config.ts
+vitest.standalone.config.ts
+
+# Secrets. Never upload.
+.env
+.env.*
+
+# ...except the public Firebase web config, which the client build requires.
+!.env.production
