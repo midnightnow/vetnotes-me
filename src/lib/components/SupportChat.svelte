@@ -175,7 +175,7 @@
     }
 
     function handleWindowDragLeave(e: DragEvent) {
-        // Only clear when leaving the window entirely
+        // Clear when the drag leaves the viewport entirely
         if (e.clientX === 0 && e.clientY === 0) isDraggingFile = false;
     }
 
@@ -187,7 +187,17 @@
         if (file.type.startsWith('image/')) {
             const preview = URL.createObjectURL(file);
             attachedImage = { file, preview };
+            // Open the chat panel if closed so the user can send the image
+            if (!isOpen) isOpen = true;
         }
+    }
+
+    function dismissDropZone() {
+        isDraggingFile = false;
+    }
+
+    function handleWindowKeydown(e: KeyboardEvent) {
+        if (e.key === 'Escape' && isDraggingFile) isDraggingFile = false;
     }
 
     // ─── TTS ─────────────────────────────────────────────────────────────────
@@ -272,14 +282,29 @@
     ondragover={handleWindowDragOver}
     ondragleave={handleWindowDragLeave}
     ondrop={handleWindowDrop}
+    onkeydown={handleWindowKeydown}
 />
 
 {#if isDraggingFile}
-    <div class="fixed inset-0 bg-slate-950/70 border-4 border-dashed border-blue-500 z-[9998] flex items-center justify-center backdrop-blur-sm pointer-events-none">
-        <div class="text-center">
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <div
+        class="fixed inset-0 bg-slate-950/70 border-4 border-dashed border-blue-500 z-[9998] flex items-center justify-center backdrop-blur-sm cursor-pointer"
+        onclick={dismissDropZone}
+        role="button"
+        aria-label="Cancel image drop"
+    >
+        <div class="text-center pointer-events-none">
             <span class="text-5xl block mb-3 animate-bounce">📎</span>
             <p class="text-white font-bold text-lg">Drop image to share with AIVA</p>
+            <p class="text-white/50 text-sm mt-2">or click / press Esc to cancel</p>
         </div>
+        <button
+            class="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors pointer-events-auto"
+            onclick={(e) => { e.stopPropagation(); dismissDropZone(); }}
+            aria-label="Cancel"
+        >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
     </div>
 {/if}
 
