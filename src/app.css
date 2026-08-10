@@ -5,8 +5,14 @@
 /*
  * Design tokens — sourced from @aiva/tokens (canonical single source of truth).
  * Do not re-declare --aiva-* or --vet-* variables in this file.
+ * Path is relative to this file (apps/vetnotes-me/src): ../../ reaches apps/,
+ * then into the colocated vetsorcery-core repo. (Was ../../../../ — overshot two
+ * levels to a nonexistent /Users/…/WORK/vetsorcery-core, so the canonical tokens
+ * — incl. the daylight/nightshift [data-theme] blocks — never loaded.)
+ * Cross-repo relative import works because these repos are colocated under apps/
+ * (see VET/REPO_MANIFEST.md §1); a fresh standalone clone would need a sync copy.
  */
-@import '../../../../vetsorcery-core/packages/aiva-tokens/src/tokens.css';
+@import '../../vetsorcery-core/packages/aiva-tokens/src/tokens.css';
 
 @layer base {
     :root {
@@ -17,12 +23,13 @@
 
     body {
         @apply min-h-screen font-sans;
-        background-color: #0d1117;
-        background-image:
-            radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
-            radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 0.1) 0, transparent 50%),
-            radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 0.1) 0, transparent 50%);
-        color: white;
+        background-color: #F7F5F0;
+        color: #24312B;
+    }
+
+    html[data-theme="nightshift"] body {
+        background-color: #10161F;
+        color: #E6ECF3;
     }
 }
 
@@ -48,3 +55,179 @@
 .animate-pulse-ring {
     animation: pulse-ring 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+ * VetNotes theme system — semantic tokens + utility remaps.
+ * A theme = a class on the app wrapper that sets the --t-* variables.
+ * The single override block below remaps the app's existing Tailwind
+ * utility vocabulary onto those variables, so components re-theme with
+ * zero markup changes and a new theme is just another variable block.
+ * Themes: .daylight (stationery light — default) · .nightshift (slate
+ * instrument dark). Values are structured for future lifting into
+ * @aiva/tokens (canonical cross-product token home) via sync script.
+ * Rollout: homepage first; apply the class to other routes to migrate.
+ * ═══════════════════════════════════════════════════════════════════ */
+
+.daylight {
+    --t-bg: #F7F5F0;
+    --t-surface: #FFFFFF;
+    --t-surface-2: #F3F1EA;
+    --t-surface-3: #FBFAF6;
+    --t-hover: #EAE6DB;
+    --t-ink: #24312B;
+    --t-ink-2: #4F5D55;
+    --t-muted: #5C6A62;
+    --t-faint: #67746C;
+    --t-border: #E3DED2;
+    --t-accent: #3E7C5B;
+    --t-accent-hover: #356B4E;
+    --t-accent-strong: #2E5C44;
+    --t-accent-soft: #E4EFE7;
+    --t-accent-border: #C9DCD0;
+    --t-on-accent: #FFFFFF;
+    --t-record: #3E7C5B;
+    --t-on-record: #FFFFFF;
+    --t-danger: #B4433A;
+    --t-disabled: #8B968E;
+    --t-scrim: rgba(36, 49, 43, 0.35);
+    --t-panel-shadow: 0 1px 3px rgba(46, 60, 52, 0.07);
+    --t-scrollbar: #D8D3C6;
+}
+
+.nightshift {
+    --t-bg: #10161F;
+    --t-surface: #18202B;
+    --t-surface-2: #1D2632;
+    --t-surface-3: #141C27;
+    --t-hover: #243040;
+    --t-ink: #E6ECF3;
+    --t-ink-2: #C3CDD8;
+    --t-muted: #8A97A8;
+    --t-faint: #74818F;
+    --t-border: #2B3646;
+    --t-accent: #37C0AE;
+    --t-accent-hover: #2FA896;
+    --t-accent-strong: #27897C;
+    --t-accent-soft: #153029;
+    --t-accent-border: #1F4A40;
+    --t-on-accent: #07211C;
+    --t-record: #E8A33D;
+    --t-on-record: #241A05;
+    --t-danger: #E06055;
+    --t-disabled: #55616E;
+    --t-scrim: rgba(4, 8, 14, 0.6);
+    --t-panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    --t-scrollbar: #2B3646;
+}
+
+.daylight,
+.nightshift {
+    min-height: 100vh;
+    background-color: var(--t-bg);
+    color: var(--t-ink);
+}
+
+/* Surfaces */
+:is(.daylight, .nightshift) .glass-panel {
+    background: var(--t-surface);
+    border: 1px solid var(--t-border);
+    box-shadow: var(--t-panel-shadow);
+    backdrop-filter: none;
+}
+:is(.daylight, .nightshift) .bg-gray-900 { background-color: var(--t-surface) !important; }
+:is(.daylight, .nightshift) .bg-black\/20 { background-color: var(--t-surface-3) !important; }
+:is(.daylight, .nightshift) .bg-black\/40 { background-color: var(--t-surface-2) !important; }
+:is(.daylight, .nightshift) .bg-black\/50 { background-color: var(--t-surface) !important; }
+:is(.daylight, .nightshift) .bg-black\/80 { background-color: var(--t-scrim) !important; }
+:is(.daylight, .nightshift) .bg-white\/5 { background-color: var(--t-surface-2) !important; }
+:is(.daylight, .nightshift) .bg-white\/10 { background-color: var(--t-hover) !important; }
+:is(.daylight, .nightshift) .bg-white\/\[0\.02\] { background-color: var(--t-surface-3) !important; }
+:is(.daylight, .nightshift) .hover\:bg-white\/5:hover,
+:is(.daylight, .nightshift) .hover\:bg-white\/10:hover,
+:is(.daylight, .nightshift) .hover\:bg-white\/20:hover { background-color: var(--t-hover) !important; }
+
+/* Text — alpha-white ramp becomes the ink/muted ramp */
+:is(.daylight, .nightshift) .text-white\/90,
+:is(.daylight, .nightshift) .text-white\/80 { color: var(--t-ink) !important; }
+:is(.daylight, .nightshift) .text-white\/60 { color: var(--t-ink-2) !important; }
+:is(.daylight, .nightshift) .text-white\/40,
+:is(.daylight, .nightshift) .text-white\/30 { color: var(--t-muted) !important; }
+:is(.daylight, .nightshift) .text-white\/20,
+:is(.daylight, .nightshift) .text-white\/10 { color: var(--t-faint) !important; }
+:is(.daylight, .nightshift) .hover\:text-white:hover,
+:is(.daylight, .nightshift) .hover\:text-white\/60:hover { color: var(--t-ink) !important; }
+:is(.daylight, .nightshift) .text-gray-500 { color: var(--t-muted) !important; }
+:is(.daylight, .nightshift) .text-purple-400 { color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .text-red-400 { color: var(--t-danger) !important; }
+
+/* Plain text-white: ink by default; on-accent on solid accent surfaces */
+:is(.daylight, .nightshift) .text-white { color: var(--t-ink) !important; }
+:is(.daylight, .nightshift) .bg-blue-600 .text-white,
+:is(.daylight, .nightshift) .bg-blue-600.text-white,
+:is(.daylight, .nightshift) .bg-blue-800 .text-white,
+:is(.daylight, .nightshift) .bg-blue-800.text-white,
+:is(.daylight, .nightshift) .bg-gray-700 .text-white,
+:is(.daylight, .nightshift) .bg-gray-700.text-white { color: var(--t-on-accent) !important; }
+:is(.daylight, .nightshift) .bg-red-500 .text-white,
+:is(.daylight, .nightshift) .bg-red-500.text-white { color: #FFFFFF !important; }
+
+/* Accent mapping (blue/green/purple utilities fold into the theme accent) */
+:is(.daylight, .nightshift) .bg-blue-600 { background-color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .bg-blue-800 { background-color: var(--t-accent-strong) !important; }
+:is(.daylight, .nightshift) .hover\:bg-blue-500:hover { background-color: var(--t-accent-hover) !important; }
+:is(.daylight, .nightshift) .bg-gray-700 { background-color: var(--t-disabled) !important; }
+:is(.daylight, .nightshift) .bg-purple-600 { background-color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .text-blue-400 { color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .text-blue-400\/60 { color: var(--t-accent) !important; opacity: 0.85; }
+:is(.daylight, .nightshift) .text-blue-500 { color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .text-green-500 { color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .bg-green-500 { background-color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .bg-blue-500\/5,
+:is(.daylight, .nightshift) .bg-blue-500\/10,
+:is(.daylight, .nightshift) .bg-blue-600\/10 { background-color: var(--t-accent-soft) !important; }
+:is(.daylight, .nightshift) .border-blue-500\/10,
+:is(.daylight, .nightshift) .border-blue-500\/20,
+:is(.daylight, .nightshift) .border-purple-500\/30 { border-color: var(--t-accent-border) !important; }
+:is(.daylight, .nightshift) .border-blue-500,
+:is(.daylight, .nightshift) .border-blue-600,
+:is(.daylight, .nightshift) .focus\:border-blue-500:focus { border-color: var(--t-accent) !important; }
+
+/* The record button (mic) gets its own signal color per theme */
+:is(.daylight, .nightshift) .w-16.bg-blue-600 { background-color: var(--t-record) !important; }
+:is(.daylight, .nightshift) .w-16.bg-blue-600 .text-white,
+:is(.daylight, .nightshift) .w-16.bg-blue-600 svg { color: var(--t-on-record) !important; }
+:is(.daylight, .nightshift) .w-16.hover\:bg-blue-500:hover { background-color: var(--t-record) !important; filter: brightness(0.94); }
+
+/* Borders */
+:is(.daylight, .nightshift) .border-white\/5,
+:is(.daylight, .nightshift) .border-white\/10,
+:is(.daylight, .nightshift) .border-white\/20 { border-color: var(--t-border) !important; }
+
+/* Scrollbars inside the themed shell */
+:is(.daylight, .nightshift) textarea::-webkit-scrollbar-thumb { background: var(--t-scrollbar); }
+
+/* ── Rollout extensions: vocabulary used by /cpd, /login, /patient, nav ── */
+:is(.daylight, .nightshift) .bg-slate-900 { background-color: var(--t-surface) !important; }
+:is(.daylight, .nightshift) .border-slate-800 { border-color: var(--t-border) !important; }
+:is(.daylight, .nightshift) .text-gray-400 { color: var(--t-muted) !important; }
+:is(.daylight, .nightshift) .text-gray-300 { color: var(--t-ink-2) !important; }
+:is(.daylight, .nightshift) .text-gray-200,
+:is(.daylight, .nightshift) .text-gray-100 { color: var(--t-ink) !important; }
+:is(.daylight, .nightshift) .text-white\/70 { color: var(--t-ink-2) !important; }
+:is(.daylight, .nightshift) .text-white\/50 { color: var(--t-muted) !important; }
+:is(.daylight, .nightshift) .hover\:border-white\/20:hover { border-color: var(--t-border) !important; }
+:is(.daylight, .nightshift) .bg-white\/\[0\.03\] { background-color: var(--t-surface-2) !important; }
+:is(.daylight, .nightshift) .text-emerald-400,
+:is(.daylight, .nightshift) .text-emerald-300 { color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .hover\:text-emerald-400:hover { color: var(--t-accent-hover) !important; }
+:is(.daylight, .nightshift) .bg-emerald-600 { background-color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .bg-emerald-950\/30 { background-color: var(--t-accent-soft) !important; }
+:is(.daylight, .nightshift) .border-emerald-500 { border-color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .hover\:border-emerald-700:hover { border-color: var(--t-accent-hover) !important; }
+:is(.daylight, .nightshift) .text-blue-600 { color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .text-blue-900 { color: var(--t-ink) !important; }
+:is(.daylight, .nightshift) .border-blue-100 { border-color: var(--t-accent-border) !important; }
+:is(.daylight, .nightshift) .bg-gradient-to-br.from-blue-500 { background-image: none !important; background-color: var(--t-accent) !important; }
+:is(.daylight, .nightshift) .bg-slate-950 { background-color: var(--t-bg) !important; }
+:is(.daylight, .nightshift) .bg-slate-950\/90 { background-color: var(--t-scrim) !important; }
+:is(.daylight, .nightshift) .bg-slate-900\/50 { background-color: var(--t-surface-2) !important; }

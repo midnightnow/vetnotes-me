@@ -1,29 +1,30 @@
 <script lang="ts">
   let { data } = $props();
+  const document = $derived((data as any).document || {});
+  const caseId = $derived((data as any).caseId || '');
 </script>
 
 <svelte:head>
-  <title>{data.document?.title || 'CPD Document'} | VetNotes</title>
+  <title>{document.title || 'CPD Document'} | VetNotes</title>
 </svelte:head>
 
 <div class="case-detail">
   <header class="case-header">
-    <h1>{data.document?.title}</h1>
-    <span class="badge">{(data.document?.session_type || 'IMAGING').toUpperCase()}</span>
+    <h1>{document.title}</h1>
+    <span class="badge">{(document.session_type || 'IMAGING').toUpperCase()}</span>
   </header>
 
   <section class="case-body">
-    <p class="description">{data.document?.description}</p>
-
+    <p class="description">{document.description}</p>
     <ul class="module-meta">
-      <li><strong>Session Type:</strong> {data.document?.session_type || 'IMAGING'}</li>
-      <li><strong>Hours Awarded:</strong> {data.document?.hours_awarded ?? 0}</li>
-      <li><strong>Provider:</strong> {data.document?.provider_name || 'VetNotes Academy'}</li>
+      <li><strong>Session Type:</strong> {document.session_type || 'IMAGING'}</li>
+      <li><strong>Hours Awarded:</strong> {document.hours_awarded ?? 0}</li>
+      <li><strong>Provider:</strong> {document.provider_name || 'VetNotes Academy'}</li>
     </ul>
   </section>
 
   <footer class="case-actions">
-    <a href={`/cpd/cases/${data.caseId}`} class="btn btn-primary">Start Module</a>
+    <a href={`/cpd/cases/${caseId}`} class="btn btn-primary">Start Module</a>
   </footer>
 </div>
 

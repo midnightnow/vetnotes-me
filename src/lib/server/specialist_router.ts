@@ -1,5 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import { adminDb } from '$lib/server/firebase-admin';
+import { adminDb, FieldValue } from '$lib/server/firebase-admin';
 import type { SpecialistProfile, SpecialistReferral, ReferralValidationResult } from '$lib/types/specialist';
 
 function getNestedValue(obj: Record<string, any>, path: string): any {
@@ -88,15 +88,15 @@ export async function createReferral(
     },
     status: 'PENDING',
     fee,
-    platform_cut,
-    specialist_net,
+    platform_cut: platformCut,
+    specialist_net: specialistNet,
     created_at: now
   };
 
   await adminDb.collection('specialist_referrals').doc(referralId).set(referral);
 
   await adminDb.collection('specialist_profiles').doc(specialistId).update({
-    'virtual_practice.pending_count': adminDb.FieldValue.increment(1)
+    'virtual_practice.pending_count': FieldValue.increment(1)
   });
 
   return referral;

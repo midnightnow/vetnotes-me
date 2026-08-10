@@ -1,6 +1,8 @@
-import type { VetDocument, Patient, SOAPData, SpeciesType } from '@vetsorcery/sdk';
+import type { VetDocument, Patient, SOAPData } from '@vetsorcery/sdk';
 
-export type { VetDocument, Patient, SOAPData, SpeciesType };
+export type SpeciesType = 'canine' | 'feline' | 'equine' | 'bovine' | 'exotic' | 'other' | string;
+
+export type { VetDocument, Patient, SOAPData };
 
 export interface VetClinicalData {
     metadata: {

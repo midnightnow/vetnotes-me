@@ -3,6 +3,9 @@
   import dayjs from 'dayjs';
 
   let { data } = $props();
+  const session = $derived((data as any).session || {});
+  const attendance = $derived((data as any).attendance || {});
+  const user = $derived((data as any).user || {});
 
   onMount(() => {
     // Optional: Auto-trigger print dialog if needed
@@ -11,7 +14,7 @@
 </script>
 
 <svelte:head>
-  <title>CPD Certificate - {data.session.title}</title>
+  <title>CPD Certificate - {session.title || 'Clinical Module'}</title>
 </svelte:head>
 
 <div class="min-h-screen bg-white text-gray-900 p-8 flex items-center justify-center font-serif">
@@ -35,7 +38,7 @@
       <div class="space-y-2">
         <p class="text-lg italic text-gray-600">This record confirms that</p>
         <p class="text-4xl font-extrabold border-b-2 border-gray-200 inline-block px-12 pb-1 text-gray-900">
-          {data.user.displayName}
+          {user.displayName || 'Veterinary Practitioner'}
         </p>
       </div>
 
@@ -44,18 +47,18 @@
           completed the following self-directed continuing professional development activity:
         </p>
         <p class="text-2xl font-bold text-blue-900 leading-tight">
-          {data.session.title}
+          {session.title || 'Clinical Module'}
         </p>
       </div>
 
       <div class="grid grid-cols-2 gap-12 pt-12 text-left max-w-2xl mx-auto">
         <div class="space-y-1">
           <p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest">CPD Hours (self-directed)</p>
-          <p class="text-xl font-bold text-gray-800">{(data.session.duration_minutes / 60).toFixed(1)} hours</p>
+          <p class="text-xl font-bold text-gray-800">{((session.duration_minutes || 60) / 60).toFixed(1)} hours</p>
         </div>
         <div class="space-y-1">
           <p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest">Date of Completion</p>
-          <p class="text-xl font-bold text-gray-800">{dayjs(data.attendance.completed_at).format('DD MMMM YYYY')}</p>
+          <p class="text-xl font-bold text-gray-800">{attendance.completed_at ? dayjs(attendance.completed_at).format('DD MMMM YYYY') : 'N/A'}</p>
         </div>
       </div>
     </div>
@@ -73,8 +76,8 @@
 
       <div class="text-right space-y-1">
         <p class="text-[8px] uppercase font-bold text-gray-400">Verification ID</p>
-        <p class="text-[10px] font-mono text-gray-600">{data.attendance.id}</p>
-        <div class="text-[8px] text-gray-400 mt-2">Verify at vetnotes.me/verify/{data.attendance.id}</div>
+        <p class="text-[10px] font-mono text-gray-600">{attendance.id || 'N/A'}</p>
+        <div class="text-[8px] text-gray-400 mt-2">Verify at vetnotes.me/verify/{attendance.id || ''}</div>
       </div>
     </div>
   </div>

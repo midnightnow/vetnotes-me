@@ -6,6 +6,7 @@ export interface VetSorceryModule {
   tier: 'free' | 'pro' | 'enterprise';
 
   systemPrompt: string;
+  schema?: Record<string, unknown>;
   extractMetadata(text: string): unknown;
   validate(data: unknown): { valid: boolean; errors?: any[] };
   computeQuality(data: any): { missing: string[]; completeness: number };

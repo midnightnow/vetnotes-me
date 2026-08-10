@@ -7,6 +7,10 @@ import { writable, derived } from 'svelte/store';
 import {
     onAuthStateChanged,
     signInWithPopup,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    updateProfile,
+    getIdToken,
     signOut as firebaseSignOut,
     type User
 } from 'firebase/auth';
@@ -27,6 +31,28 @@ export const isPro = derived(clinicContext, ($ctx) =>
     $ctx?.tier === 'pro' || $ctx?.tier === 'enterprise' || $ctx?.tier === 'starter'
 );
 
+// Helper to sync session cookie with server
+export async function syncSessionCookie(currentUser: User | null): Promise<void> {
+    try {
+        if (currentUser) {
+            const token = await getIdToken(currentUser, true);
+            await fetch('/api/auth/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token })
+            });
+        } else {
+            await fetch('/api/auth/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: null })
+            });
+        }
+    } catch (e) {
+        console.warn('Failed to sync session cookie:', e);
+    }
+}
+
 // Initialize listener
 let unsubscribe: (() => void) | null = null;
 
@@ -38,21 +64,50 @@ export function initAuth() {
         loading.set(false);
 
         if (currentUser) {
+            await syncSessionCookie(currentUser);
             // Resolve clinic context from VetSorcery Firestore/claims
             const ctx = await resolveClinicContext();
             clinicContext.set(ctx);
         } else {
             clinicContext.set(null);
             clearClinicContext();
+            await syncSessionCookie(null);
         }
     });
 }
 
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithGoogle(): Promise<User> {
     try {
-        await signInWithPopup(auth, googleProvider);
+        const result = await signInWithPopup(auth, googleProvider);
+        await syncSessionCookie(result.user);
+        return result.user;
     } catch (error: any) {
         console.error('Google Sign-In failed:', error.message);
+        throw error;
+    }
+}
+
+export async function signUpWithEmail(email: string, password: string, name?: string): Promise<User> {
+    try {
+        const res = await createUserWithEmailAndPassword(auth, email, password);
+        if (name && name.trim()) {
+            await updateProfile(res.user, { displayName: name.trim() });
+        }
+        await syncSessionCookie(res.user);
+        return res.user;
+    } catch (error: any) {
+        console.error('Sign-up failed:', error.message);
+        throw error;
+    }
+}
+
+export async function signInWithEmail(email: string, password: string): Promise<User> {
+    try {
+        const res = await signInWithEmailAndPassword(auth, email, password);
+        await syncSessionCookie(res.user);
+        return res.user;
+    } catch (error: any) {
+        console.error('Sign-in failed:', error.message);
         throw error;
     }
 }

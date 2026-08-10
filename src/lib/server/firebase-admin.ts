@@ -11,3 +11,4 @@ if (getApps().length === 0) {
 
 export const adminAuth = getAuth();
 export const adminDb = getFirestore();
+export { FieldValue } from 'firebase-admin/firestore';

@@ -1,15 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+        // Pre-paint theme hint: avoids a light flash for Night Shift users.
+        try { if (localStorage.getItem("vetnotes_theme") === "nightshift") document.documentElement.dataset.theme = "nightshift"; } catch (e) {}
+        // Fix getter-only fetch property in iframe/sandboxed environments
+        (function() {
+            try {
+                var currentFetch = window.fetch;
+                Object.defineProperty(window, 'fetch', {
+                    get: function() { return currentFetch; },
+                    set: function(v) { currentFetch = v; },
+                    configurable: true,
+                    enumerable: true
+                });
+            } catch (e) {
+                try {
+                    var currentFetch = window.fetch;
+                    Object.defineProperty(Object.getPrototypeOf(window), 'fetch', {
+                        get: function() { return currentFetch; },
+                        set: function(v) { currentFetch = v; },
+                        configurable: true,
+                        enumerable: true
+                    });
+                } catch (e2) {}
+            }
+        })();
+    </script>
     %sveltekit.head%
 </head>
-
 <body data-sveltekit-preload-data="hover">
     <div style="display: contents">%sveltekit.body%</div>
 </body>
-
 </html>

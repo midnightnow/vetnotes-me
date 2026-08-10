@@ -2,8 +2,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
-  export let imageUrl: string;
+  export let imageUrl: string = '';
   export let annotations: any[] = [];
+  export let studyId: string = '';
+  export let instanceUrls: string[] = [];
+  export let metadata: any = {};
+
+  $: activeUrl = imageUrl || (instanceUrls && instanceUrls.length > 0 ? instanceUrls[0] : '');
 
   let ImagingViewer: any;
   let isMounted = false;
@@ -11,6 +16,7 @@
   onMount(async () => {
     try {
       // Dynamically load the browser-only package/component during client mount
+      // @ts-ignore
       const module = await import('vetsorcery-imaging');
       ImagingViewer = module.default || module.Viewer;
       isMounted = true;
@@ -24,8 +30,10 @@
   {#if isMounted && ImagingViewer}
     <svelte:component
       this={ImagingViewer}
-      src={imageUrl}
+      src={activeUrl}
       {annotations}
+      {studyId}
+      {metadata}
     />
   {:else}
     <div class="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 gap-2">
