@@ -5,6 +5,46 @@
   // say "launching soon" rather than print a price that can't be bought.
   // Practice-management plans live (and are purchasable) on vetsorcery.com —
   // we link rather than mirror prices, so the two sites can't drift apart.
+  //
+  // VetNotes Pro (A$49/mo) is the one tier here with a real Stripe price behind
+  // it (`VETNOTES_PRO_PRICE_ID`). Its button posts to /api/pro/checkout, which
+  // 503s with { configured: false } if the env is missing — in that case we show
+  // the pre-sale state rather than a dead button, so this page can never
+  // advertise a price that cannot actually be paid.
+  let proBusy = $state(false);
+  let proError = $state('');
+
+  async function startProCheckout() {
+    proBusy = true;
+    proError = '';
+    try {
+      const res = await fetch('/api/pro/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ return_path: '/pricing' })
+      });
+
+      if (res.status === 401) {
+        window.location.href = '/login?redirectTo=%2Fpricing';
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+      proError =
+        data?.configured === false
+          ? 'Pro checkout is not available just yet — please try again shortly.'
+          : 'Could not start checkout. Please try again.';
+    } catch {
+      proError = 'Could not reach checkout. Please check your connection and try again.';
+    } finally {
+      proBusy = false;
+    }
+  }
+
   const tiers = [
     {
       name: 'VetNotes Scribe',
@@ -33,6 +73,42 @@
         'Paid certification (CPD Pass) launching soon'
       ],
       cta: { label: 'Browse CPD cases', href: '/cpd' },
+      secondary: null,
+      highlight: false
+    },
+    {
+      name: 'VetNotes Basic',
+      price: 'A$10',
+      period: 'per month · 30-day free trial',
+      tagline: 'For the solo vet who lives in the editor.',
+      features: [
+        'Everything in VetNotes Scribe',
+        'Cloud SOAP structuring from voice',
+        'Extended template library'
+      ],
+      // Stripe Payment Link (plink_1U36YzQtktamRZKgnIiZQygK, 2026-08-11).
+      // stripeWebhook maps its 1000c recurring price → plan 'vetnotes_basic'.
+      cta: {
+        label: 'Start free trial',
+        href: 'https://buy.stripe.com/bJecN7cg62wB3VJ8P0eUU0E',
+        external: true
+      },
+      secondary: null,
+      highlight: false
+    },
+    {
+      name: 'VetNotes Pro',
+      price: 'A$49',
+      period: 'per month',
+      tagline: 'The full clinical AI suite for a single vet.',
+      features: [
+        'Everything in VetNotes Scribe',
+        'Cloud SOAP structuring from voice',
+        'Premium charge detection on every consult',
+        'Advanced clinical templates',
+        'Sync notes to your practice system'
+      ],
+      cta: { label: 'Subscribe', action: 'pro' },
       secondary: null,
       highlight: true
     },
@@ -72,7 +148,7 @@
       </p>
     </div>
 
-    <div class="grid md:grid-cols-3 gap-6">
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
       {#each tiers as tier}
         <div
           class="bg-white rounded-2xl border p-8 flex flex-col {tier.highlight
@@ -97,6 +173,19 @@
           </ul>
 
           <div class="space-y-2">
+            {#if tier.cta.action === 'pro'}
+              <button
+                type="button"
+                onclick={startProCheckout}
+                disabled={proBusy}
+                class="block w-full text-center px-4 py-2.5 rounded-xl font-semibold transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {proBusy ? 'Starting checkout…' : tier.cta.label}
+              </button>
+              {#if proError}
+                <p class="text-sm text-red-600 text-center">{proError}</p>
+              {/if}
+            {:else}
             <a
               href={tier.cta.href}
               target={tier.cta.external ? '_blank' : undefined}
@@ -116,6 +205,7 @@
               >
                 {tier.secondary.label}
               </a>
+            {/if}
             {/if}
           </div>
         </div>

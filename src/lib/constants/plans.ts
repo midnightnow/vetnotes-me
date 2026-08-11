@@ -33,11 +33,27 @@ export const PAYING_PLANS: ReadonlySet<string> = new Set([
 	'professional',
 	'pro',
 	'enterprise',
-	'internal_test'
+	'internal_test',
+	// Notes-only tiers (aiva.vet/notes Payment Links, 2026-08-11): $49 Pro and
+	// $10 Basic. Paying HERE (they bought the scribe) but deliberately NOT in
+	// vetsorcery-core's PAYING_PLANS — a $49 Notes subscription must not unlock
+	// the $199+ practice OS. planVocabulary.test.ts encodes this split.
+	'vetnotes',
+	'vetnotes_basic'
 ]);
 
-/** Subscription statuses where access is no longer paid for. */
-export const DEAD_STATUSES: ReadonlySet<string> = new Set(['cancelled', 'payment_failed']);
+/**
+ * Subscription statuses where access is no longer paid for.
+ *
+ * `paused` matters for the no-card Payment Link trials: Stripe is configured to
+ * pause the subscription when a 30-day trial ends without a payment method.
+ * Without it here, a lapsed trialer would keep Pro forever.
+ */
+export const DEAD_STATUSES: ReadonlySet<string> = new Set([
+	'cancelled',
+	'payment_failed',
+	'paused'
+]);
 
 /**
  * Is this (plan, status) pair currently paid?
