@@ -3,7 +3,8 @@
   import type { PageData } from './$types';
   import { onMount } from 'svelte';
   import { db } from '$lib/firebase';
-  import { doc, onSnapshot } from 'firebase/firestore';
+  import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
+  import ScribeWidget from '$lib/components/ScribeWidget.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -11,6 +12,10 @@
   // Null when no clinical note exists yet (pending pre-visit state).
   let patientContext = $state<VetClinicalData | null>(data.patientContext);
   let pending = $state<boolean>(data.pending);
+  let imagingJobs = $state<any[]>([]);
+  let activeFinding = $state<string | null>(null);
+
+  import XRayOverlay from '$lib/components/XRayOverlay.svelte';
 
   // Keep state in sync with SSR page data loads
   $effect(() => {
@@ -20,7 +25,23 @@
 
   onMount(() => {
     const path = data.activePath;
-    if (!path) return;
+    
+    // Listen to imaging jobs
+    const clinicId = data.clinicId || 'demo-sandbox';
+    const jobsQuery = query(
+      collection(db, 'clinics', clinicId, 'imaging_jobs'),
+      where('patientId', '==', data.slug)
+    );
+    
+    const unsubscribeJobs = onSnapshot(jobsQuery, (snapshot) => {
+      imagingJobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }, (err) => {
+      console.warn('[VetNotes] imaging_jobs listener stopped:', err?.code || err);
+    });
+
+    if (!path) {
+      return () => { unsubscribeJobs(); };
+    }
 
     const unsubscribe = onSnapshot(doc(db, path), (noteSnap) => {
       if (noteSnap.exists()) {
@@ -75,6 +96,7 @@
 
     return () => {
       unsubscribe();
+      unsubscribeJobs();
     };
   });
 </script>
@@ -138,6 +160,71 @@
         {/if}
         
         <!-- Footer -->
+        {#if imagingJobs.length > 0}
+        <div class="mt-12 border-t border-gray-100 pt-8">
+            <h3 class="text-xs font-bold text-blue-600 uppercase tracking-widest mb-6 pb-2">Diagnostic Imaging</h3>
+            <div class="grid grid-cols-1 gap-12">
+              {#each imagingJobs as job}
+                {#if job.image_url}
+                  <div class="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-md">
+                    <div class="px-4 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                        <h4 class="text-sm font-bold text-gray-800 capitalize">{job.modality || 'Imaging'} Analysis</h4>
+                        <span class="text-xs font-mono text-gray-400">Gemini 3.7 Flash</span>
+                    </div>
+                    
+                    <div class="relative w-full bg-slate-900 flex justify-center">
+                      <XRayOverlay 
+                        imageUrl={job.image_url} 
+                        areasOfInterest={job.findings?.areas_of_interest || []} 
+                        activeFinding={activeFinding} 
+                      />
+                    </div>
+
+                    <!-- Findings Text -->
+                    {#if job.findings?.areas_of_interest && job.findings.areas_of_interest.length > 0}
+                      <div class="p-6">
+                        <h5 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Identified Areas of Interest</h5>
+                        <ul class="space-y-2">
+                          {#each job.findings.areas_of_interest as area}
+                            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+                            <li 
+                              class="p-3 rounded-lg border transition-all cursor-default {activeFinding === area.finding ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-100 hover:bg-gray-100'}"
+                              onmouseenter={() => activeFinding = area.finding}
+                              onmouseleave={() => activeFinding = null}
+                            >
+                              <div class="flex items-center justify-between mb-1">
+                                <span class="font-bold text-gray-800">{area.finding}</span>
+                                {#if area.clinical_significance}
+                                  <span class="text-[10px] px-2 py-0.5 rounded-full font-bold {area.clinical_significance === 'CRITICAL' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}">
+                                    {area.clinical_significance}
+                                  </span>
+                                {/if}
+                              </div>
+                              {#if area.evidence_description}
+                                <p class="text-sm text-gray-600">{area.evidence_description}</p>
+                              {/if}
+                            </li>
+                          {/each}
+                        </ul>
+                      </div>
+                    {:else if job.findings?.objective_findings}
+                      <div class="p-6">
+                        <h5 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Objective Findings</h5>
+                        <ul class="list-disc pl-5 text-sm text-gray-700 space-y-2">
+                          {#each job.findings.objective_findings as finding}
+                            <li>{finding}</li>
+                          {/each}
+                        </ul>
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+              {/each}
+            </div>
+        </div>
+        {/if}
+        
+        <!-- Footer -->
         <div class="mt-16 border-t border-gray-100 pt-8 text-center">
             <p class="text-xs text-gray-400">
                 Generated via VetNotes Open Source • Local-First Clinical Intelligence
@@ -164,3 +251,5 @@
     </div>
   </div>
 </div>
+
+<ScribeWidget clinicId={data.clinicId || 'demo-clinic'} patientId={data.slug} />
