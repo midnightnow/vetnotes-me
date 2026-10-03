@@ -14,6 +14,8 @@
  * every function here.
  */
 
+import { shouldLoadAnalyticsInBrowser } from './analyticsHost';
+
 const MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID ?? 'G-5RMHPMWWLZ';
 
 type GaParams = Record<string, unknown>;
@@ -27,9 +29,9 @@ declare global {
 
 let initialised = false;
 
-/** True when a measurement id is configured and we are running in a browser. */
+/** True when a measurement id is configured and a real visitor is on a production host (analyticsHost.ts). */
 export function gaEnabled(): boolean {
-	return typeof window !== 'undefined' && MEASUREMENT_ID !== '';
+	return typeof window !== 'undefined' && MEASUREMENT_ID !== '' && shouldLoadAnalyticsInBrowser();
 }
 
 export function getMeasurementId(): string {
