@@ -1,39 +1,26 @@
 /**
  * Stripe webhook for CPD certification purchases.
  *
- * On a signature-verified `checkout.session.completed` for the CPD product,
- * grants the buyer a CPD entitlement (idempotent). Signature verification is
- * done manually against the raw body (no `stripe` npm dependency).
+ * Signature-verified against the raw body (no `stripe` npm dependency). Grants a
+ * CPD entitlement on a paid checkout; revokes on subscription cancellation, a
+ * full refund or a dispute. Dedupe, ordering and the paid check live in
+ * `$lib/server/stripe_webhook.ts`, shared with `api/pro/webhook`. Before
+ * 2026-10-24 a refunded one-off pass kept a lifetime entitlement.
  *
  * Required env:
  *   STRIPE_CPD_WEBHOOK_SECRET — the signing secret (whsec_...) for this endpoint
+ *   STRIPE_SECRET_KEY         — to resolve refunds/disputes to a product
  *
- * Point a Stripe webhook at POST /api/cpd/webhook, event: checkout.session.completed.
+ * Endpoint events: see the list at the top of `stripe_webhook.ts`.
  */
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
-import crypto from 'node:crypto';
-import { grantCpdEntitlement, revokeCpdEntitlement } from '$lib/server/cpd_entitlement';
+import { adminDb } from '$lib/server/firebase-admin';
+import { cpdGrantFields, cpdRevokeFields } from '$lib/server/cpd_entitlement';
+import { firestoreStore, handleEntitlementEvent, verifyStripeSignature } from '$lib/server/stripe_webhook';
 
-const TOLERANCE_SECONDS = 300;
-
-function verifyStripeSignature(payload: string, header: string | null, secret: string): boolean {
-  if (!header) return false;
-  const parts = Object.fromEntries(header.split(',').map((kv) => kv.split('=')));
-  const timestamp = parts['t'];
-  const signature = parts['v1'];
-  if (!timestamp || !signature) return false;
-
-  // Reject stale timestamps to blunt replay attacks.
-  const age = Math.floor(Date.now() / 1000) - Number(timestamp);
-  if (!Number.isFinite(age) || Math.abs(age) > TOLERANCE_SECONDS) return false;
-
-  const expected = crypto.createHmac('sha256', secret).update(`${timestamp}.${payload}`).digest('hex');
-  const a = Buffer.from(expected);
-  const b = Buffer.from(signature);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
+const CPD_PRODUCTS = new Set(['cpd_pass', 'cpd_certification']); // '..._certification' = back-compat
 
 export const POST: RequestHandler = async ({ request }) => {
   const secret = env.STRIPE_CPD_WEBHOOK_SECRET;
@@ -48,32 +35,25 @@ export const POST: RequestHandler = async ({ request }) => {
   }
 
   const event = JSON.parse(payload);
-  const CPD_PRODUCTS = new Set(['cpd_pass', 'cpd_certification']); // '..._certification' = back-compat
+  // A thrown error returns 500, so Stripe retries; the ledger makes the retry safe.
+  const outcome = await handleEntitlementEvent(event, {
+    products: CPD_PRODUCTS,
+    collection: 'cpd_entitlements',
+    store: firestoreStore(adminDb),
+    grantFields: (a) =>
+      cpdGrantFields({
+        source: a.meta.source ?? 'stripe',
+        plan: a.meta.plan || 'all_access',
+        // One-off pass = lifetime (null). Subscription passes get the period end.
+        expiresAt: a.expiresAt,
+        stripeSessionId: a.meta.stripeSessionId ?? undefined,
+        stripeCustomerId: a.meta.stripeCustomerId ?? undefined,
+        email: a.meta.email ?? undefined
+      }),
+    revokeFields: cpdRevokeFields,
+    stripeSecret: env.STRIPE_SECRET_KEY
+  });
+  console.log(`[cpd/webhook] ${event.type} ${event.id}: ${outcome}`);
 
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data?.object || {};
-    const userId = session.client_reference_id || session.metadata?.user_id;
-    if (userId && CPD_PRODUCTS.has(session.metadata?.product)) {
-      await grantCpdEntitlement(userId, {
-        source: 'stripe_checkout',
-        plan: session.metadata?.plan || 'all_access',
-        // One-off pass = lifetime (no expiry). Subscription passes are kept alive
-        // by renewal invoices and revoked on subscription.deleted (below).
-        expiresAt: null,
-        stripeSessionId: session.id,
-        stripeCustomerId: session.customer,
-        email: session.customer_details?.email || session.customer_email
-      });
-    }
-  } else if (event.type === 'customer.subscription.deleted') {
-    // Recurring CPD Pass cancelled/ended -> revoke access.
-    const sub = event.data?.object || {};
-    const userId = sub.metadata?.user_id;
-    if (userId && CPD_PRODUCTS.has(sub.metadata?.product)) {
-      await revokeCpdEntitlement(userId, 'subscription_deleted');
-    }
-  }
-
-  // Always 200 quickly so Stripe doesn't retry a handled event.
   return json({ received: true });
 };

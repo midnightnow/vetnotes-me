@@ -3,6 +3,9 @@
 // JSON is never copied, so every clean `gcloud --source` build crashed in
 // SvelteKit's postbuild analyse step (third broken-at-commit class, 2026-07-17).
 import schemaRaw from '$lib/schemas/dermatology-leader-format-v1.json?raw';
+import { generateDiagnosticTriggers as generateCanonicalDiagnosticTriggers } from '$lib/server/derm_leader_format';
+
+const dermLeaderSchema = JSON.parse(schemaRaw);
 
 const REQUIRED_FIELDS = [
   'diet_trial_duration_weeks',
@@ -97,53 +100,58 @@ export function validateMetadata(data: unknown): DermMetadataValidation {
   }
 }
 
-export function computeQuality(data: Record<string, unknown>): DermMetadataQuality {
-  const missing = REQUIRED_FIELDS.filter((field) => data[field] == null);
+function collectSchemaRequiredPaths(schema: any): string[] {
+  const paths: string[] = [];
+  if (!schema || typeof schema !== 'object' || !schema.properties) return paths;
+  for (const section of (schema.required || []) as string[]) {
+    const sectionSchema = schema.properties[section];
+    const reqFields = (sectionSchema?.required || []) as string[];
+    if (reqFields.length === 0) {
+      paths.push(section);
+    } else {
+      for (const field of reqFields) {
+        paths.push(`${section}.${field}`);
+      }
+    }
+  }
+  return paths;
+}
+
+function hasNestedPath(obj: any, dottedPath: string): boolean {
+  let cur = obj;
+  for (const key of dottedPath.split('.')) {
+    if (!cur || typeof cur !== 'object' || !(key in cur) || cur[key] == null) {
+      return false;
+    }
+    cur = cur[key];
+  }
+  return true;
+}
+
+export function computeQuality(data: any): DermMetadataQuality {
+  const schemaPaths = collectSchemaRequiredPaths(dermLeaderSchema);
+  const isNestedSchemaShape =
+    data &&
+    typeof data === 'object' &&
+    ('diet' in data || 'parasiteControl' in data || 'immunosuppression' in data || 'cytology' in data);
+
+  if (isNestedSchemaShape && schemaPaths.length > 0) {
+    const missing = schemaPaths.filter((path) => !hasNestedPath(data, path));
+    const completeness = Math.round(((schemaPaths.length - missing.length) / schemaPaths.length) * 100);
+    return { missingCriticalMetadata: missing, completenessScore: completeness };
+  }
+
+  const missing = REQUIRED_FIELDS.filter((field) => data?.[field] == null);
   const completeness = Math.round(((REQUIRED_FIELDS.length - missing.length) / REQUIRED_FIELDS.length) * 100);
   return { missingCriticalMetadata: missing, completenessScore: completeness };
 }
 
-export function generateDiagnosticTriggers(data: Record<string, unknown>): DiagnosticTriggerFlags {
-  const triggerRationale: string[] = [];
-
-  const failedDietTrial = (data?.dietTrial?.outcome === 'worse') ||
-    (typeof data?.dietTrial?.durationWeeks === 'number' && data.dietTrial.durationWeeks < 8);
-  if (failedDietTrial) triggerRationale.push('Diet trial was unsuccessful or less than 8 weeks');
-
-  const recurrentOtitis = Boolean(data?.recurrentOtitis);
-  if (recurrentOtitis) triggerRationale.push('Recurrent otitis documented');
-
-  const recurrentPyoderma = Boolean(data?.recurrentPyoderma);
-  if (recurrentPyoderma) triggerRationale.push('Recurrent pyoderma documented');
-
-  const favrotCriteriaMet = typeof data?.favrotCriteria?.criteriaMetCount === 'number'
-    ? data.favrotCriteria.criteriaMetCount >= 5
-    : false;
-  if (favrotCriteriaMet) triggerRationale.push('FAVROT criteria met (>=5)');
-
-  const allergyTestingCandidate = favrotCriteriaMet && !(data?.dietTrial?.performed === true);
-  if (allergyTestingCandidate) triggerRationale.push('Allergy testing candidate: FAVROT met, diet trial not performed');
-
-  const rodsDetected = Array.isArray(data?.cytology?.sites)
-    ? data.cytology.sites.some((site: any) => typeof site?.rods0_4 === 'number' && site.rods0_4 > 0)
-    : false;
-  if (rodsDetected) triggerRationale.push('Rod-shaped organisms detected on cytology');
-
-  const cultureRecommended = Array.isArray(data?.cytology?.sites)
-    ? data.cytology.sites.some((site: any) => typeof site?.rods0_4 === 'number' && site.rods0_4 > 1)
-    : false;
-  if (cultureRecommended) triggerRationale.push('Culture recommended: rods > 1 on cytology');
-
+export function generateDiagnosticTriggers(data: any): DiagnosticTriggerFlags {
+  const flags = generateCanonicalDiagnosticTriggers(
+    data && typeof data === 'object' ? (data as Record<string, unknown>) : {}
+  );
   return {
-    failedDietTrial,
-    incompleteSteroidWashout: false,
-    recurrentOtitis,
-    recurrentPyoderma,
-    rodsDetected,
-    favrotCriteriaMet,
-    allergyTestingCandidate,
-    cultureRecommended,
-    referralRecommended: true,
-    triggerRationale
+    ...flags,
+    triggerRationale: flags.triggerRationale ?? []
   };
 }

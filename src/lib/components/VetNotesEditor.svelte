@@ -6,7 +6,7 @@
         type SOAPNote,
         pushToPIMS,
     } from "$lib/services/aiva";
-    import { structureViaGemini } from "$lib/services/gemini";
+    import { structureViaCloud, structureViaGemini, CloudStructuringUnavailable } from "$lib/services/gemini";
     import { redactPII } from "$lib/utils/redactor";
     import { SOAP_TEMPLATES, FREE_TEMPLATE_KEYS } from "$lib/data/templates";
     import {
@@ -53,6 +53,8 @@
     let timerInterval: any = null;
     let soapNote: SOAPNote | null = null;
 
+    let showTemplates = false;
+    let sidebarCollapsed = true;
     let selectedTemplate = "wellness_exam";
     let activeAxisType: AxisType | null = null;
     let showAxisPicker = false;
@@ -155,30 +157,6 @@
             "webkitSpeechRecognition" in window ||
             "SpeechRecognition" in window
         ) {
-            const SpeechRecognition =
-                (window as any).SpeechRecognition ||
-                (window as any).webkitSpeechRecognition;
-            recognition = new SpeechRecognition();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = "en-US";
-
-            recognition.onresult = (event: any) => {
-                let interim = "";
-                let final = "";
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const transcript = event.results[i][0].transcript;
-                    if (event.results[i].isFinal) {
-                        final += transcript + " ";
-                    } else {
-                        interim += transcript;
-                    }
-                }
-                if (final) {
-                    rawTranscript += final;
-                }
-                interimTranscript = interim;
-            };
             if (!draftRestored) status = "Ready for Consult";
         } else {
             if (!draftRestored) status = "Speech recognition not supported";
@@ -186,7 +164,31 @@
     });
 
     onDestroy(() => {
-        if (timerInterval) clearInterval(timerInterval as any);
+        isRecording = false;
+        if (timerInterval) {
+            clearInterval(timerInterval as any);
+            timerInterval = null;
+        }
+        if (draftTimer) {
+            clearTimeout(draftTimer);
+            draftTimer = null;
+        }
+        if (recognition) {
+            recognition.onend = null;
+            recognition.onresult = null;
+            recognition.onerror = null;
+            try { recognition.stop(); } catch { /* ignore */ }
+            recognition = null;
+        }
+        if (mediaRecorder) {
+            mediaRecorder.onstop = null;
+            mediaRecorder.ondataavailable = null;
+            try {
+                if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
+            } catch { /* ignore */ }
+            mediaRecorder.stream?.getTracks().forEach((track) => track.stop());
+            mediaRecorder = null;
+        }
     });
 
     function formatTime(seconds: number): string {
@@ -195,17 +197,72 @@
         return `${m}:${s.toString().padStart(2, "0")}`;
     }
 
+    // ── Speech recognition helpers ──────────────────────────────────────────
+    // We create a fresh SpeechRecognition instance each recording session so
+    // there is no carry-over of result buffers from prior sessions.
+    // Chrome auto-stops the recognizer after ~60s of silence; we restart it
+    // transparently so long recordings keep working.
+
+    function buildRecognizer(): any {
+        if (typeof window === 'undefined') return null;
+        const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SR) return null;
+
+        const rec = new SR();
+        rec.continuous = true;
+        rec.interimResults = true;
+        // Prefer en-AU for Australian vets; falls back gracefully in other locales
+        rec.lang = navigator.language?.startsWith('en') ? navigator.language : 'en-AU';
+        rec.maxAlternatives = 1;
+
+        rec.onresult = (event: any) => {
+            // event.resultIndex is the index of the first NEW result in this event.
+            // Only iterate from there — never re-read prior results.
+            let newFinal = "";
+            let interim = "";
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const text = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    newFinal += text + " ";
+                } else {
+                    interim = text; // only keep the latest interim
+                }
+            }
+            if (newFinal) rawTranscript += newFinal;
+            interimTranscript = interim;
+        };
+
+        rec.onerror = (e: any) => {
+            // 'no-speech' and 'audio-capture' are recoverable — ignore them
+            if (e.error === 'not-allowed') {
+                status = "Microphone blocked — allow mic access in your browser";
+                isRecording = false;
+            }
+        };
+
+        // Auto-restart: Chrome stops the recognizer after silence.
+        // Restart it as long as we're still recording.
+        rec.onend = () => {
+            if (isRecording) {
+                try { rec.start(); } catch { /* already started */ }
+            }
+        };
+
+        return rec;
+    }
+
     async function toggleRecording() {
         if (!isRecording) {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: true,
-                });
-                if (recognition) {
-                    rawTranscript = "";
-                    interimTranscript = "";
-                    recognition.start();
-                }
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // Fresh recognizer — no result carry-over from previous sessions
+                recognition = buildRecognizer();
+                rawTranscript = "";
+                interimTranscript = "";
+
+                if (recognition) recognition.start();
+
                 mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
                 elapsedTime = 0;
@@ -213,15 +270,15 @@
                     if (event.data.size > 0) audioChunks.push(event.data);
                 };
                 mediaRecorder.onstop = async () => {
-                    if (recognition) recognition.stop();
+                    // Stop recognizer before processing so onend doesn't restart it
+                    isRecording = false;
+                    if (recognition) { recognition.onend = null; recognition.stop(); recognition = null; }
                     await processRecording();
                 };
                 mediaRecorder.start(1000);
                 isRecording = true;
                 status = "Listening...";
-                timerInterval = setInterval(() => {
-                    elapsedTime++;
-                }, 1000);
+                timerInterval = setInterval(() => { elapsedTime++; }, 1000);
             } catch (err) {
                 console.error("Mic error:", err);
                 status = "Microphone blocked — allow mic access in your browser";
@@ -235,7 +292,7 @@
                 clearInterval(timerInterval as any);
                 timerInterval = null;
             }
-            isRecording = false;
+            // isRecording is set to false inside mediaRecorder.onstop above
         }
     }
 
@@ -250,11 +307,17 @@
             }
             const redactedTranscript = redactPII(rawTranscript);
             try {
-                soapNote = await structureViaGemini(redactedTranscript, aivaApiKey);
-                status = "Structured via Cloud AI";
+                if (aivaApiKey) {
+                    soapNote = await structureViaGemini(redactedTranscript, aivaApiKey);
+                    status = "Structured with your Gemini key";
+                } else {
+                    soapNote = await structureViaCloud(redactedTranscript);
+                    status = "Structured via Cloud AI";
+                }
             } catch (e) {
+                // Keyword rules, not AI — say so, and say why the cloud path didn't run.
                 soapNote = await structureToSOAP(redactedTranscript, false);
-                status = "Structured via Local AI";
+                status = `Structured locally (keyword rules) — ${localFallbackReason(e)}`;
             }
             transcript = formatSOAPAsText(soapNote!);
             keyInsights = (soapNote?.missedCharges?.length || 0);
@@ -263,6 +326,18 @@
         } finally {
             isProcessing = false;
         }
+    }
+
+    function localFallbackReason(e: unknown): string {
+        if (e instanceof CloudStructuringUnavailable) {
+            switch (e.reason) {
+                case "signed_out": return "sign in for cloud AI";
+                case "not_pro": return "cloud AI is part of Pro";
+                case "not_configured": return "cloud AI unavailable";
+                case "rate_limited": return "cloud AI busy, try again shortly";
+            }
+        }
+        return "cloud AI failed";
     }
 
     function copyToClipboard() {
@@ -461,7 +536,7 @@
                 </div>
                 <p class="text-xs text-white/40 font-semibold mb-2">AI</p>
                 <p class="text-xs text-white/40 mb-6 leading-relaxed">
-                    Cloud SOAP structuring is included with VetNotes — there is nothing to set up here.
+                    Cloud SOAP structuring is included with VetNotes Pro — there is nothing to set up here.
                     If you'd rather run AI usage through your own Google AI account, paste a
                     <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="text-blue-400 underline">Gemini API key</a>
                     below and it will be used instead of ours.
@@ -470,7 +545,7 @@
                     <div>
                         <label for="gemini-key-input" class="block text-xs text-gray-500 font-semibold mb-2">Your Gemini API key (optional)</label>
                         <!-- svelte-ignore a11y-autofocus -->
-                        <input id="gemini-key-input" type="password" autofocus bind:value={aivaApiKey} placeholder="Paste key, or leave empty to use the built-in one" class="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"/>
+                        <input id="gemini-key-input" type="password" autofocus bind:value={aivaApiKey} placeholder="Optional — leave empty to use VetNotes cloud AI (Pro)" class="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"/>
                     </div>
                 </div>
                 <div class="mt-8 flex justify-end">
@@ -480,58 +555,32 @@
         </div>
     {/if}
 
-    <main class="grid lg:grid-cols-4 gap-8">
-        <aside class="space-y-6 order-2 lg:order-none">
-            <div class="glass-panel rounded-3xl p-6 space-y-6">
-                <div>
-                    <p class="text-xs text-white/40 font-semibold mb-4">Connection status</p>
-                    <div class="flex items-center space-x-3">
-                        <span class="w-2 h-2 rounded-full {isRecording ? 'bg-red-500 animate-pulse' : 'bg-green-500'}"></span>
-                        <p class="text-xs font-bold text-white/80">{status}</p>
-                    </div>
-                    {#if draftRestored}
-                        <button on:click={discardDraft} class="mt-2 text-xs text-white/40 underline hover:text-white transition-colors">Discard restored draft</button>
-                    {/if}
-                </div>
-
-                <div class="pt-6 border-t border-white/5">
-                    <p class="text-xs text-white/40 font-semibold mb-4">Privacy &amp; security</p>
-                    <div class="space-y-2">
-                        <div class="flex items-center space-x-2 text-xs text-white/60">
-                            <span class="text-green-500">✓</span>
-                            <span>Local transcription</span>
-                        </div>
-                        <div class="flex items-center space-x-2 text-xs text-white/60">
-                            <span class="text-green-500">✓</span>
-                            <span>No cloud data retention</span>
-                        </div>
-                        <div class="flex items-center space-x-2 text-xs text-white/60">
-                            <span class="text-green-500">✓</span>
-                            <span>PII redaction before cloud AI</span>
-                        </div>
-                        {#if $isAuthenticated}
-                            <div class="flex items-center space-x-2 text-xs text-white/60">
-                                <span class="text-blue-400">✓</span>
-                                <span>Cloud sync enabled</span>
-                            </div>
-                        {/if}
-                    </div>
-                </div>
-
-                <div class="pt-6 border-t border-white/5 flex flex-col gap-3">
-                    <button on:click={confirmClearWorkspace} class="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white text-xs font-semibold transition-all">Clear workspace</button>
-                </div>
+    <main class="grid gap-6">
+        <!-- Collapsible sidebar strip — shown as a row at top on desktop -->
+        <div class="flex items-center gap-3 flex-wrap">
+            <div class="flex items-center gap-2 text-xs text-white/50">
+                <span class="w-2 h-2 rounded-full shrink-0 {isRecording ? 'bg-red-500 animate-pulse' : 'bg-green-500'}"></span>
+                <span class="font-semibold">{status}</span>
             </div>
-        </aside>
+            {#if draftRestored}
+                <button on:click={discardDraft} class="text-xs text-white/40 underline hover:text-white transition-colors">Discard draft</button>
+            {/if}
+            <div class="ml-auto flex items-center gap-2 text-xs text-white/30">
+                <span title="Uses your browser's speech service (Chrome/Edge send audio to Google/Microsoft)">Browser speech-to-text</span>
+                <span>✓ PII redaction</span>
+                {#if $isAuthenticated}<span class="text-blue-400">✓ Cloud sync</span>{/if}
+            </div>
+            <button on:click={confirmClearWorkspace} class="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white text-xs font-semibold transition-all">Clear workspace</button>
+        </div>
 
-        <section class="lg:col-span-3 flex flex-col gap-8 order-1 lg:order-none">
+        <section class="flex flex-col gap-6">
             <!-- Patient Picker -->
             <PatientPicker />
 
             {#if importedBannerVisible}
                 <div 
                     transition:slide
-                    class="relative z-50 mb-6 p-4 rounded-2xl border border-sky-200/50 bg-sky-50/80 backdrop-blur-xl shadow-xl shadow-sky-900/5 flex items-center justify-between"
+                    class="relative z-50 p-4 rounded-2xl border border-sky-200/50 bg-sky-50/80 backdrop-blur-xl shadow-xl shadow-sky-900/5 flex items-center justify-between"
                 >
                     <div class="flex items-center gap-4">
                         <div class="w-10 h-10 bg-gradient-to-br from-sky-500 to-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
@@ -553,115 +602,129 @@
                 </div>
             {/if}
 
-            <div class="glass-panel rounded-3xl p-8 min-h-[400px] flex flex-col order-3 lg:order-none">
-                <div class="flex justify-between items-center mb-8">
-                    <h3 class="text-xl font-bold text-white/90 tracking-tight">Clinical Intelligence</h3>
-                    <div class="flex space-x-3">
-                        <button on:click={exportToVet} disabled={!soapNote} class="px-4 py-2 text-xs font-semibold bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all disabled:opacity-50">Export .vet</button>
-                        <button on:click={copyToClipboard} disabled={!transcript} class="px-4 py-2 text-xs font-semibold bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all disabled:opacity-50">Copy Note</button>
-                        <button
-                            on:click={handlePushToPIMS}
-                            disabled={!transcript || isPushing || !$isAuthenticated}
-                            title={!$isAuthenticated ? 'Sign in to sync with PIMS' : ''}
-                            class="px-4 py-2 text-xs font-semibold {isPushing ? 'bg-blue-800' : !$isAuthenticated ? 'bg-gray-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'} rounded-xl transition-all shadow-lg disabled:opacity-50"
-                        >
-                            {#if !$isAuthenticated}
-                                Sync to PIMS
-                            {:else}
-                                {isPushing ? "Syncing..." : "Sync to PIMS"}
-                            {/if}
-                        </button>
-                    </div>
-                </div>
-                <div class="grid md:grid-cols-3 gap-8 flex-grow">
-                    <div class="space-y-6">
-                        <div class="bg-black/20 rounded-2xl p-6 border border-white/5">
-                            <p class="text-xs text-white/40 font-semibold mb-4">Consultation progress</p>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div class="text-center">
-                                    <span class="block text-2xl font-bold font-mono text-white">{formatTime(elapsedTime)}</span>
-                                    <span class="text-xs text-white/40">Elapsed</span>
-                                </div>
-                                <div class="text-center">
-                                    <span class="block text-2xl font-bold font-mono text-blue-400">{$player.totalConsultations}</span>
-                                    <span class="text-xs text-white/40">Sessions</span>
-                                </div>
-                            </div>
-                        </div>
+            <!-- ── Clinical Intelligence panel ── -->
+            <div class="glass-panel rounded-3xl p-6 flex flex-col gap-5">
 
-                        <div>
-                            <p class="text-xs text-white/40 font-semibold mb-4">Clinical templates</p>
-                            <div class="grid grid-cols-1 gap-2">
+                <!-- Header: title + template toggle + action buttons -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <h3 class="text-lg font-bold text-white/90 tracking-tight mr-auto">Clinical Intelligence</h3>
+
+                    <!-- Template toggle — shows selected name, opens picker -->
+                    <div class="relative">
+                        <button
+                            on:click={() => showTemplates = !showTemplates}
+                            class="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all
+                                   {showTemplates ? 'bg-blue-600 text-white border-blue-600' : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10'}"
+                        >
+                            <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                            {SOAP_TEMPLATES[selectedTemplate as keyof typeof SOAP_TEMPLATES]?.name ?? "Template"}
+                            <svg class="w-3 h-3 transition-transform {showTemplates ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+
+                        {#if showTemplates}
+                            <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+                            <div
+                                class="absolute right-0 top-full mt-1 z-40 glass-panel rounded-2xl p-2 min-w-[180px] shadow-xl"
+                                transition:fade={{ duration: 120 }}
+                            >
                                 {#each Object.entries(SOAP_TEMPLATES).filter(([k]) => visibleTemplates.includes(k)) as [key, template]}
-                                    <button on:click={() => (selectedTemplate = key)} class="text-left px-4 py-2 rounded-lg text-xs font-semibold transition-all {selectedTemplate === key ? 'bg-blue-600 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}">
+                                    <button
+                                        on:click={() => { selectedTemplate = key; showTemplates = false; }}
+                                        class="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all {selectedTemplate === key ? 'bg-blue-600 text-white' : 'text-white/60 hover:bg-white/10'}"
+                                    >
                                         {template.name}
                                     </button>
                                 {/each}
                                 {#if !$isPro}
-                                    <div class="mt-2 p-3 bg-blue-500/5 rounded-lg border border-blue-500/10">
-                                        <p class="text-[9px] text-blue-400/60 leading-relaxed italic">More templates (Equine, Pathology, etc.) available in Pro tier.</p>
-                                    </div>
+                                    <p class="text-[9px] text-blue-400/60 px-3 pt-2 pb-1 border-t border-white/5 mt-1">More in Pro tier</p>
                                 {/if}
                             </div>
-                        </div>
-                    </div>
-
-                    <div class="md:col-span-2 flex flex-col space-y-4">
-                        <div id="soap-stream-box" class="bg-gray-50 text-gray-900 rounded-2xl p-8 min-h-[300px] overflow-y-auto shadow-inner">
-                            {#if transcript}
-                                <div class="prose prose-sm max-w-none whitespace-pre-wrap font-sans leading-relaxed">{transcript}</div>
-                            {:else if isProcessing}
-                                <div class="flex flex-col items-center justify-center h-full space-y-4 opacity-40">
-                                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                                    <p class="text-xs">Generating clinical record…</p>
-                                </div>
-                            {:else}
-                                <div class="flex flex-col items-center justify-center h-full opacity-20 text-center">
-                                    <svg class="w-12 h-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
-                                    <p class="text-sm">Start recording to generate note</p>
-                                </div>
-                            {/if}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid md:grid-cols-2 gap-8 order-2 lg:order-none">
-                <div class="glass-panel rounded-3xl p-8 flex items-center justify-between">
-                    <div class="flex items-center gap-6">
-                        <button on:click={toggleRecording} aria-label={isRecording ? "Stop recording" : "Start recording"} class="w-16 h-16 rounded-full flex items-center justify-center transition-all {isRecording ? 'bg-red-500 animate-pulse' : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/20'}">
-                            {#if isRecording}
-                                <div class="w-5 h-5 bg-white rounded-sm"></div>
-                            {:else}
-                                <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8h-2a5 5 0 01-10 0H3a7.001 7.001 0 006 6.93V17H6v2h8v-2h-3v-2.07z"/></svg>
-                            {/if}
-                        </button>
-                        <div>
-                            <h4 class="font-bold text-white">{isRecording ? "Recording…" : "New consult"}</h4>
-                            <p class="text-xs text-white/40">{isRecording ? "Transcribing as you speak" : "Tap the microphone to start"}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="glass-panel rounded-3xl p-6 bg-black/40">
-                    <p class="text-xs font-semibold text-white/40 mb-4">Live transcript</p>
-                    <div class="h-[80px] overflow-y-auto text-xs leading-relaxed text-blue-400/60">
-                        {rawTranscript || "Ready — the transcript appears here as you speak."}
-                        {#if interimTranscript}
-                            <span class="opacity-30">{interimTranscript}</span>
                         {/if}
                     </div>
+
+                    <button on:click={exportToVet} disabled={!soapNote} class="px-3 py-1.5 text-xs font-semibold bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all disabled:opacity-40">Export .vet</button>
+                    <button on:click={copyToClipboard} disabled={!transcript} class="px-3 py-1.5 text-xs font-semibold bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all disabled:opacity-40">Copy Note</button>
+                    <button
+                        on:click={handlePushToPIMS}
+                        disabled={!transcript || isPushing || !$isAuthenticated}
+                        title={!$isAuthenticated ? 'Sign in to sync with PIMS' : ''}
+                        class="px-3 py-1.5 text-xs font-semibold {isPushing ? 'bg-blue-800' : !$isAuthenticated ? 'bg-gray-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'} rounded-xl transition-all shadow-lg disabled:opacity-40"
+                    >
+                        {isPushing ? "Syncing…" : "Sync to PIMS"}
+                    </button>
                 </div>
+
+                <!-- ── Mic trigger + live transcript (full width, large) ── -->
+                <div class="rounded-2xl border border-white/5 overflow-hidden {isRecording ? 'bg-red-950/20 border-red-500/20' : 'bg-black/10'}">
+                    <!-- Mic row -->
+                    <div class="flex items-center gap-4 px-5 py-4">
+                        <button
+                            on:click={toggleRecording}
+                            aria-label={isRecording ? "Stop recording" : "Start recording"}
+                            class="w-12 h-12 shrink-0 rounded-full flex items-center justify-center transition-all
+                                   {isRecording ? 'bg-red-500 shadow-lg shadow-red-500/30' : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/20'}"
+                        >
+                            {#if isRecording}
+                                <div class="w-4 h-4 bg-white rounded-sm animate-pulse"></div>
+                            {:else}
+                                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8h-2a5 5 0 01-10 0H3a7.001 7.001 0 006 6.93V17H6v2h8v-2h-3v-2.07z"/></svg>
+                            {/if}
+                        </button>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-bold text-white/90">{isRecording ? "Recording — speak naturally" : "New consult"}</p>
+                            <p class="text-xs text-white/40">{isRecording ? "Tap the square to stop" : "Tap the microphone to start"}</p>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <span class="block text-lg font-bold font-mono {isRecording ? 'text-red-400' : 'text-white/40'}">{formatTime(elapsedTime)}</span>
+                            <span class="text-[10px] text-white/20">elapsed</span>
+                        </div>
+                    </div>
+
+                    <!-- Live transcript — large, prominent, always visible while recording -->
+                    {#if isRecording || rawTranscript}
+                        <div class="border-t border-white/5 px-5 py-4 max-h-48 overflow-y-auto">
+                            <p class="text-xs font-semibold text-white/30 mb-2 uppercase tracking-wider">Live transcript</p>
+                            <p class="text-sm leading-relaxed text-white/80 whitespace-pre-wrap">
+                                {rawTranscript || ""}
+                                {#if interimTranscript}
+                                    <span class="text-white/30 italic">{interimTranscript}</span>
+                                {/if}
+                            </p>
+                            {#if !rawTranscript && isRecording}
+                                <p class="text-white/20 italic text-sm">Waiting for speech…</p>
+                            {/if}
+                        </div>
+                    {/if}
+                </div>
+
+                <!-- ── SOAP output area (full width) ── -->
+                <div id="soap-stream-box" class="rounded-2xl bg-gray-50 text-gray-900 overflow-y-auto shadow-inner" style="min-height: 220px; max-height: 60vh;">
+                    {#if transcript}
+                        <div class="p-6 prose prose-sm max-w-none whitespace-pre-wrap font-sans leading-relaxed">{transcript}</div>
+                    {:else if isProcessing}
+                        <div class="flex flex-col items-center justify-center h-full min-h-[220px] space-y-3 opacity-40">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                            <p class="text-xs">Generating clinical record…</p>
+                        </div>
+                    {:else}
+                        <div class="flex flex-col items-center justify-center min-h-[220px] opacity-20 text-center p-6">
+                            <svg class="w-10 h-10 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 2 0 01.707.293l5.414 5.414a1 2 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            <p class="text-sm">SOAP note will appear here after recording</p>
+                        </div>
+                    {/if}
+                </div>
+
             </div>
 
-            <div class="glass-panel rounded-3xl overflow-hidden flex flex-col min-h-[400px] order-4 lg:order-none">
-                <div class="bg-white/5 px-8 py-4 flex justify-between items-center border-b border-white/5">
+            <!-- ── Manual clinical editor ── -->
+            <div class="glass-panel rounded-3xl overflow-hidden flex flex-col" style="min-height: 280px;">
+                <div class="bg-white/5 px-6 py-3 flex justify-between items-center border-b border-white/5">
                     <span class="text-xs font-semibold text-white/40">Manual clinical editor</span>
                     <button on:click={confirmClearWorkspace} class="text-xs font-semibold text-white/20 hover:text-white/60 transition-colors">Clear all</button>
                 </div>
-                <div class="flex h-full">
-                    <textarea bind:value={rawTranscript} on:input={handleEditorInput} class="flex-grow bg-transparent p-10 font-mono text-sm leading-relaxed text-white/80 focus:outline-none resize-none" placeholder="Draft clinical notes here..."></textarea>
-                    <div class="w-64 border-l border-white/5 p-4 bg-black/20 hidden lg:block">
+                <div class="flex flex-1">
+                    <textarea bind:value={rawTranscript} on:input={handleEditorInput} class="flex-grow bg-transparent p-6 font-mono text-sm leading-relaxed text-white/80 focus:outline-none resize-none" placeholder="Draft clinical notes here..."></textarea>
+                    <div class="w-56 border-l border-white/5 p-4 bg-black/20 hidden lg:block">
                         <ReferenceSidebar transcript={transcript || rawTranscript} />
                     </div>
                 </div>

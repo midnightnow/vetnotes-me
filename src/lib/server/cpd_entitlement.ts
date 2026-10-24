@@ -103,19 +103,25 @@ export async function hasCpdEntitlement(userId: string): Promise<boolean> {
  */
 export async function grantCpdEntitlement(userId: string, meta: GrantMeta = { source: 'unknown' }): Promise<void> {
   if (!userId) throw new Error('grantCpdEntitlement: missing userId');
-  await adminDb.collection('cpd_entitlements').doc(userId).set(
-    {
-      active: true,
-      plan: meta.plan || 'all_access',
-      granted_at: new Date().toISOString(),
-      expires_at: meta.expiresAt ?? null,
-      source: meta.source,
-      ...(meta.stripeSessionId ? { stripe_session_id: meta.stripeSessionId } : {}),
-      ...(meta.stripeCustomerId ? { stripe_customer_id: meta.stripeCustomerId } : {}),
-      ...(meta.email ? { email: meta.email } : {})
-    },
-    { merge: true }
-  );
+  await adminDb.collection('cpd_entitlements').doc(userId).set(cpdGrantFields(meta), { merge: true });
+}
+
+/** The fields a grant writes — shared with the webhook's transactional apply. */
+export function cpdGrantFields(meta: GrantMeta): Record<string, unknown> {
+  return {
+    active: true,
+    plan: meta.plan || 'all_access',
+    granted_at: new Date().toISOString(),
+    expires_at: meta.expiresAt ?? null,
+    source: meta.source,
+    ...(meta.stripeSessionId ? { stripe_session_id: meta.stripeSessionId } : {}),
+    ...(meta.stripeCustomerId ? { stripe_customer_id: meta.stripeCustomerId } : {}),
+    ...(meta.email ? { email: meta.email } : {})
+  };
+}
+
+export function cpdRevokeFields(reason: string): Record<string, unknown> {
+  return { active: false, revoked_at: new Date().toISOString(), revoke_reason: reason };
 }
 
 /**
@@ -126,5 +132,5 @@ export async function revokeCpdEntitlement(userId: string, reason: string): Prom
   await adminDb
     .collection('cpd_entitlements')
     .doc(userId)
-    .set({ active: false, revoked_at: new Date().toISOString(), revoke_reason: reason }, { merge: true });
+    .set(cpdRevokeFields(reason), { merge: true });
 }

@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import WhisperWorker from "$lib/workers/whisper.worker?worker";
   import { structureNote } from "$lib/services/gemini";
+  import { formatSOAPAsText } from "$lib/services/aiva";
   import { structureNoteLocal } from "$lib/services/ollama";
   import { redactPII } from "$lib/utils/redactor";
   import { TEMPLATES, type TemplateId } from "$lib/constants/templates";
@@ -130,7 +131,7 @@
 
       let result: string;
       if (provider === "gemini") {
-        result = await structureNote(redactedText, apiKey, templatePrompt);
+        result = formatSOAPAsText(await structureNote(redactedText, apiKey, templatePrompt));
       } else {
         result = await structureNoteLocal(
           redactedText,

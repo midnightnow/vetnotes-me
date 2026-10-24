@@ -20,6 +20,7 @@ export type AnatomicalZone =
 
 export type CompetencyId = 'COMP_1' | 'COMP_2' | 'COMP_3' | 'COMP_4' | 'COMP_5';
 export type CompetencyTier = 'COMPETENT' | 'BORDERLINE' | 'NOT_COMPETENT';
+export type CPDSessionType = 'workshop' | 'case_study' | 'webinar' | 'lecture' | 'self_paced' | 'interactive' | 'IMAGING' | string;
 
 // ==========================================
 // PUBLIC DATABASE SCHEMAS
@@ -67,7 +68,6 @@ export interface CPDCase {
   provider_name?: string;
   provider_code?: string;
   activity_code?: string;
-  module_id?: string;
 }
 
 export interface CPDSecureCaseData {

@@ -299,7 +299,7 @@
   <div class="media-panel">
     <DicomViewer 
       studyId={data.caseId}
-      instanceUrls={data.publicCase.raw_images.map(img => img.url)}
+      instanceUrls={(data.publicCase.raw_images || []).map((img: { url: string }) => img.url)}
       metadata={{
         patientName: `${data.publicCase.signalment.species} (${data.publicCase.signalment.breed})`,
         modality: 'RAD',

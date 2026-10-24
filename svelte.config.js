@@ -1,23 +1,18 @@
-import adapterStatic from '@sveltejs/adapter-static';
 import adapterNode from '@sveltejs/adapter-node';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
-// SSR migration: `SSR_BUILD=1` builds a Node SSR server (into build-ssr) so the
-// server routes (CPD scoring, certificates, checkout, webhook) actually run.
-// Default build stays static so existing deploy scripts remain safe until the
-// SSR deploy path is validated on staging.
-const useSSR = process.env.SSR_BUILD === '1';
-
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
-	// Consult https://svelte.dev/docs/kit/integrations
-	// for more information about preprocessors
 	preprocess: vitePreprocess(),
 
 	kit: {
-		adapter: useSSR
-			? adapterNode({ out: 'build-ssr' })
-			: adapterStatic({ fallback: 'index.html' }),
+		/* `out` must stay 'build-ssr': the Dockerfile's CMD is
+		   `node build-ssr/index.js`. adapter-node defaults to 'build/', and when
+		   the SSR_BUILD conditional was removed from this file the container
+		   started failing its startup probe with
+		   `Cannot find module '/app/build-ssr/index.js'` — which is why
+		   vetnotes.me had not deployed since 2026-08-04. */
+		adapter: adapterNode({ out: 'build-ssr' }),
 		prerender: {
 			handleHttpError: 'warn',
 			handleUnseenRoutes: 'ignore'

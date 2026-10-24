@@ -19,10 +19,20 @@ const dermatologyModule: VetSorceryModule = {
     return validateMetadata(data);
   },
   computeQuality(data: any) {
-    return computeQuality(data);
+    const res = computeQuality(data);
+    return { missing: res.missingCriticalMetadata, completeness: res.completenessScore };
   },
   generateTriggers(data: any) {
-    return generateDiagnosticTriggers(data);
+    const triggers = generateDiagnosticTriggers(data) as Record<string, any>;
+    const res: Record<string, boolean | string> = {};
+    for (const [k, v] of Object.entries(triggers)) {
+      if (Array.isArray(v)) {
+        res[k] = v.join('; ');
+      } else if (typeof v === 'boolean' || typeof v === 'string') {
+        res[k] = v;
+      }
+    }
+    return res;
   },
   toFirestore(data: any) {
     return {

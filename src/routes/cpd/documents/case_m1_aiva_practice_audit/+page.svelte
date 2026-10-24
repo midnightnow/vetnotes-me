@@ -55,7 +55,7 @@
     ></textarea>
 
     <div class="actions">
-      <a class="cta" href={`/cpd/cases/${data.caseId}`}>Start module</a>
+      <a class="cta" href={`/cpd/cases/${(data as any).caseId || 'case_m1_aiva_practice_audit'}`}>Start module</a>
       <a class="link" href="/cpd/documents">Back to documents</a>
     </div>
   </section>

@@ -1,0 +1,8 @@
+{
+  "name": "VetNotes ME",
+  "description": "Veterinary clinical notes and CPD management application",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

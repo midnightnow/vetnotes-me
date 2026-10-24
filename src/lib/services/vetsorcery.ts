@@ -116,7 +116,24 @@ export async function getSubscriptionInfo(): Promise<SubscriptionInfo> {
             }
         }
 
-        const paid = !!plan && PAYING_PLANS.has(plan) && !(status && DEAD_STATUSES.has(status));
+        let paid = !!plan && PAYING_PLANS.has(plan) && !(status && DEAD_STATUSES.has(status));
+
+        /* A VetNotes Pro subscriber bought on vetnotes.me has no VetSorcery
+           `plan` claim — Pro is its own entitlement (see
+           `server/pro_entitlement.ts` for why it is not a second writer of the
+           claim). The entitlement doc is not client-readable, so ask the server.
+           Only reached when the claim path already said "not paid", so this adds
+           no cost for clinics on a paid VetSorcery plan. */
+        if (!paid) {
+            try {
+                const res = await fetch('/api/pro/status');
+                if (res.ok) paid = (await res.json())?.pro === true;
+            } catch {
+                /* Network failure must not silently downgrade a paying user to
+                   free any more loudly than the claim path already would. */
+            }
+        }
+
         if (!paid) return FREE_TIER;
 
         // 'enterprise' is the only tier that means more than "paid" to VetNotes.
