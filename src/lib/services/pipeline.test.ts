@@ -129,15 +129,16 @@ describe('Chinese Whispers: End-to-End Pipeline Integrity', () => {
         CLINICAL_SCENARIOS.forEach((scenario) => {
             it(`[${scenario.name}] detects at least ${scenario.minCharges} charges`, () => {
                 const result = structureLocally(scenario.rawTranscript);
-                expect(result.missedCharges.length).toBeGreaterThanOrEqual(scenario.minCharges);
+                expect((result.missedCharges || []).length).toBeGreaterThanOrEqual(scenario.minCharges);
             });
 
             it(`[${scenario.name}] detects expected charges`, () => {
                 const result = structureLocally(scenario.rawTranscript);
+                const charges = result.missedCharges || [];
                 scenario.expectedCharges.forEach((charge) => {
                     expect(
-                        result.missedCharges,
-                        `Expected "${charge}" in [${result.missedCharges.join(', ')}]`
+                        charges,
+                        `Expected "${charge}" in [${charges.join(', ')}]`
                     ).toContain(charge);
                 });
             });
@@ -155,7 +156,7 @@ describe('Chinese Whispers: End-to-End Pipeline Integrity', () => {
                     type: 'soap_note',
                     status: 'draft',
                     billing_staged: false,
-                    billingItems: soap.missedCharges.map((desc) => ({
+                    billingItems: (soap.missedCharges || []).map((desc) => ({
                         description: desc,
                         status: 'suggested',
                         source: 'revenue_hunter',
@@ -212,7 +213,7 @@ describe('Chinese Whispers: End-to-End Pipeline Integrity', () => {
             const doc = {
                 source: 'vetnotes',
                 billing_staged: false,
-                billingItems: soap.missedCharges.map((desc) => ({
+                billingItems: (soap.missedCharges || []).map((desc) => ({
                     description: desc,
                     status: 'suggested',
                     source: 'revenue_hunter',
@@ -236,7 +237,7 @@ describe('Chinese Whispers: End-to-End Pipeline Integrity', () => {
                 const soap = structureLocally(transcript);
 
                 // Step 3: Build Firestore document
-                const billingItems = soap.missedCharges.map((desc) => ({
+                const billingItems = (soap.missedCharges || []).map((desc) => ({
                     description: desc,
                     status: 'suggested' as const,
                     source: 'revenue_hunter',

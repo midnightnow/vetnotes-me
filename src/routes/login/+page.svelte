@@ -2,11 +2,13 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { auth } from '$lib/firebase';
-  import { GoogleAuthProvider, signInWithPopup, getIdToken } from 'firebase/auth';
+  import { signInWithEmail, signInWithGoogle } from '$lib/stores/auth';
 
-  let redirectTo = '/cpd';
-  let isLoading = false;
+  let email = $state('');
+  let password = $state('');
+  let redirectTo = $state('/cpd');
+  let isLoading = $state(false);
+  let errorMsg = $state('');
 
   onMount(() => {
     const queryRedirect = $page.url.searchParams.get('redirectTo');
@@ -15,24 +17,50 @@
     }
   });
 
-  async function syncSessionCookie(user: any) {
-    const token = await getIdToken(user, true);
-    await fetch("/api/auth/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token })
-    });
+  function parseAuthError(err: any): string {
+    const code = err?.code || '';
+    if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+      return 'Invalid email or password. Please try again or create a new account.';
+    } else if (code === 'auth/invalid-email') {
+      return 'Please enter a valid email address.';
+    } else if (code === 'auth/too-many-requests') {
+      return 'Too many failed login attempts. Please try again later.';
+    } else if (code === 'auth/popup-closed-by-user') {
+      return 'Google sign-in was cancelled.';
+    } else if (code === 'auth/popup-blocked') {
+      return 'Pop-up window blocked by browser. Please allow popups or use email sign in.';
+    }
+    return err?.message || 'Sign-in failed. Please try again.';
+  }
+
+  async function handleEmailSignIn(e: Event) {
+    e.preventDefault();
+    if (!email || !password) {
+      errorMsg = 'Please enter your email and password.';
+      return;
+    }
+
+    isLoading = true;
+    errorMsg = '';
+
+    try {
+      await signInWithEmail(email, password);
+      await goto(redirectTo);
+    } catch (err) {
+      errorMsg = parseAuthError(err);
+    } finally {
+      isLoading = false;
+    }
   }
 
   async function handleGoogleSignIn() {
     isLoading = true;
+    errorMsg = '';
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      await syncSessionCookie(result.user);
+      await signInWithGoogle();
       await goto(redirectTo);
-    } catch (error) {
-      console.error("Sign-in failed", error);
+    } catch (err) {
+      errorMsg = parseAuthError(err);
     } finally {
       isLoading = false;
     }
@@ -43,80 +71,85 @@
   <title>Login | VetNotes</title>
 </svelte:head>
 
-<div class="login-page">
-  <div class="login-card">
-    <div class="logo">
-      <div class="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+<div class="min-h-screen flex items-center justify-center bg-slate-950 p-4 font-sans text-slate-100">
+  <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl">
+    <div class="text-center mb-6">
+      <div class="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-blue-500/20">
         <span class="text-white text-xl font-bold">VN</span>
       </div>
-      <h2>Access VetNotes CPD Academy</h2>
-      <p>To view clinical cases and log your verifiable hours, please sign in.</p>
+      <h1 class="text-2xl font-bold text-white tracking-tight">Access VetNotes</h1>
+      <p class="text-sm text-slate-400 mt-1">Sign in to your clinical scribe & CPD Academy account</p>
     </div>
 
-    <button class="google-btn" on:click={handleGoogleSignIn} disabled={isLoading}>
-      {#if isLoading}
-        Signing in...
-      {:else}
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
-        Sign In with Google
-      {/if}
+    {#if errorMsg}
+      <div class="mb-4 p-3 bg-red-950/80 border border-red-800/60 text-red-200 text-xs rounded-xl flex items-center gap-2">
+        <svg class="w-4 h-4 shrink-0 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <span>{errorMsg}</span>
+      </div>
+    {/if}
+
+    <form onsubmit={handleEmailSignIn} class="space-y-4">
+      <div>
+        <label for="login-email" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Email Address</label>
+        <input
+          id="login-email"
+          type="email"
+          required
+          bind:value={email}
+          placeholder="sarah@vetpractice.com"
+          class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+        />
+      </div>
+
+      <div>
+        <label for="login-password" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Password</label>
+        <input
+          id="login-password"
+          type="password"
+          required
+          bind:value={password}
+          placeholder="••••••••"
+          class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={isLoading}
+        class="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-all disabled:opacity-50 shadow-md shadow-blue-600/20"
+      >
+        {#if isLoading}
+          Signing in...
+        {:else}
+          Sign In
+        {/if}
+      </button>
+    </form>
+
+    <div class="relative my-6 text-center">
+      <div class="absolute inset-0 flex items-center">
+        <div class="w-full border-t border-slate-800"></div>
+      </div>
+      <span class="relative bg-slate-900 px-3 text-xs text-slate-500 uppercase font-medium">Or sign in with</span>
+    </div>
+
+    <button
+      type="button"
+      onclick={handleGoogleSignIn}
+      disabled={isLoading}
+      class="w-full py-2.5 px-4 bg-white hover:bg-slate-100 text-slate-900 font-semibold text-sm rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+    >
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" class="w-4 h-4" />
+      <span>Sign in with Google</span>
     </button>
+
+    <p class="mt-6 text-center text-xs text-slate-400">
+      Don't have an account yet?
+      <a href={`/signup?redirectTo=${encodeURIComponent(redirectTo)}`} class="text-blue-400 font-semibold hover:underline">
+        Create one now
+      </a>
+    </p>
   </div>
 </div>
-
-<style>
-  .login-page {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--t-bg, #020617);
-    padding: 1rem;
-  }
-  .login-card {
-    background: var(--t-surface, #0f172a);
-    border: 1px solid var(--t-border, rgba(255,255,255,0.1));
-    padding: 2.5rem;
-    border-radius: 2rem;
-    max-width: 400px;
-    width: 100%;
-    text-align: center;
-    box-shadow: var(--t-panel-shadow, 0 25px 50px -12px rgba(0, 0, 0, 0.5));
-  }
-  .logo h2 {
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: var(--t-ink, white);
-    margin-bottom: 0.5rem;
-  }
-  .logo p {
-    color: var(--t-muted, #94a3b8);
-    font-size: 0.9rem;
-    margin-bottom: 2rem;
-    line-height: 1.5;
-  }
-  .google-btn {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    background: white;
-    color: #1e293b;
-    padding: 0.75rem;
-    border: 1px solid var(--t-border, transparent);
-    border-radius: 0.75rem;
-    font-weight: 600;
-    font-size: 0.95rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .google-btn:hover {
-    background: #f1f5f9;
-    transform: translateY(-1px);
-  }
-  .google-btn img {
-    width: 18px;
-    height: 18px;
-  }
-</style>

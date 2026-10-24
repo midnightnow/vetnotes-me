@@ -16,4 +16,10 @@ declare global {
 	}
 }
 
+declare module 'vetsorcery-imaging' {
+	const content: any;
+	export default content;
+	export const Viewer: any;
+}
+
 export {};

@@ -4,6 +4,8 @@
 // SvelteKit's postbuild analyse step (third broken-at-commit class, 2026-07-17).
 import schemaRaw from '$lib/schemas/dermatology-leader-format-v1.json?raw';
 
+const dermLeaderSchema = JSON.parse(schemaRaw);
+
 const REQUIRED_FIELDS = [
   'diet_trial_duration_weeks',
   'diet_trial_strictness',
@@ -97,13 +99,13 @@ export function validateMetadata(data: unknown): DermMetadataValidation {
   }
 }
 
-export function computeQuality(data: Record<string, unknown>): DermMetadataQuality {
-  const missing = REQUIRED_FIELDS.filter((field) => data[field] == null);
+export function computeQuality(data: any): DermMetadataQuality {
+  const missing = REQUIRED_FIELDS.filter((field) => data?.[field] == null);
   const completeness = Math.round(((REQUIRED_FIELDS.length - missing.length) / REQUIRED_FIELDS.length) * 100);
   return { missingCriticalMetadata: missing, completenessScore: completeness };
 }
 
-export function generateDiagnosticTriggers(data: Record<string, unknown>): DiagnosticTriggerFlags {
+export function generateDiagnosticTriggers(data: any): DiagnosticTriggerFlags {
   const triggerRationale: string[] = [];
 
   const failedDietTrial = (data?.dietTrial?.outcome === 'worse') ||
