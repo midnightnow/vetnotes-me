@@ -542,7 +542,7 @@
                 <button on:click={discardDraft} class="text-xs text-white/40 underline hover:text-white transition-colors">Discard draft</button>
             {/if}
             <div class="ml-auto flex items-center gap-2 text-xs text-white/30">
-                <span>✓ Local transcription</span>
+                <span title="Uses your browser's speech service (Chrome/Edge send audio to Google/Microsoft)">Browser speech-to-text</span>
                 <span>✓ PII redaction</span>
                 {#if $isAuthenticated}<span class="text-blue-400">✓ Cloud sync</span>{/if}
             </div>
