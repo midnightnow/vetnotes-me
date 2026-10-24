@@ -1,86 +1,83 @@
-# VetNotes Open Source
+# VetNotes
 
-> **Like WordPress.org, but for veterinary SOAP notes.**
-
-VetNotes is a free, open-source tool that helps veterinarians create professional medical records without being locked into proprietary systems. Your records, your control.
-
----
-
-## 🐾 The WordPress Model for VetNotes
-
-| Product | Equivalent | Price | What You Get |
-|---------|------------|-------|--------------|
-| **vetnotes-me** (GitHub) | **WordPress.org** | **Free** | Self-hosted, DIY, 5 templates, local SOAP, PII redaction, `.vet` export. |
-| **[vetnotes.me](https://vetnotes.me)** (Hosted) | **WordPress.com** | **~$10/mo** | Hosted convenience, zero-config, auto-backups, basic support. |
-| **[vetnotes.pro](https://vetnotes.pro)** (Premium) | **WordPress VIP** | **~$50/mo** | Full clinical suite, AIVA Voice, Premium Charge Detection, advanced templates, PIMS sync. |
-| **VetSorcery** | **Enterprise** | **Custom** | Full PMS/EMR, Inventory, Multi-practice management, Biosecurity (Northern Shield). |
+VetNotes is a consult scribe for veterinarians. You talk through the consult, and VetNotes drafts a
+SOAP note for you to review, then copy into your practice system or export as a `.vet` file.
+The code is open source (MIT). The hosted app runs at **[vetnotes.me](https://vetnotes.me)**.
 
 ---
 
-## ✨ Open Source Core Features (vetnotes-me)
+## Plans (as sold on vetnotes.me/pricing)
 
-- **5 Clinical Templates**: Wellness, Sick Visit, Vaccination, Procedure, Admission
-- **Local-First**: All processing happens in your browser
-- **PII Redaction**: Automatic scrubbing of client names, phone numbers, addresses
-- **SOAP + POMR**: Structured notes with Problem-Oriented Medical Record support
-- **Export Formats**: Copy/paste into any PMS (ezyVet, RxWorks, Neo)
+| Plan | Price | What you get |
+|------|-------|--------------|
+| **VetNotes Scribe** | Free during beta | Voice capture, the SOAP note editor, patient record pages. Notes are structured locally with keyword rules. |
+| **VetNotes Basic** | A$10/mo (30-day free trial) | Cloud SOAP structuring from voice, extended templates. |
+| **VetNotes Pro** | A$49/mo | Cloud SOAP structuring, charge detection on every consult, advanced templates, sync to VetSorcery. |
+| **CPD Academy** | Free cases; paid certification not yet on sale | Clinical cases with scoring and a self-directed study record. **Not accredited CPD.** |
+| **[VetSorcery](https://vetsorcery.com)** | From A$199/mo for the first vet, A$100 per additional vet | The full practice-management system. VetNotes Pro is included. |
+
+"Sync to your practice system" means **VetSorcery**. There is no direct integration with ezyVet,
+RxWorks, IDEXX Neo or other PMS. For those, copy the note across.
 
 ---
 
-## 🚀 Quick Start (Self-Hosted)
+## How your data is handled (accurately)
+
+- **Speech-to-text** uses the browser's Web Speech API. In Chrome and Edge the browser sends the
+  audio to its vendor's speech service (Google or Microsoft). It is **not** transcribed on your
+  device, and VetNotes cannot redact it before that happens.
+- **PII redaction** (`src/lib/utils/redactor.ts`) runs in the browser on the *transcript text*,
+  scrubbing client names, phone numbers and addresses before the text is sent for cloud structuring.
+- **Cloud SOAP structuring** (Basic/Pro) sends the redacted transcript to the VetNotes server
+  (`/api/soap/structure`), which calls Google Vertex AI (Gemini). No AI key is shipped in the browser.
+- **Local structuring** (free tier, or whenever the cloud path is unavailable) uses keyword rules in
+  the browser. The status line says which path produced the note.
+- **Signed-in data** (notes sync, CPD records, entitlements) is stored in Google Cloud Firestore.
+
+---
+
+## Quick start (self-hosted / development)
 
 ```bash
-# Clone the repository
 git clone https://github.com/midnightnow/vetnotes-me.git
-
-# Enter directory
 cd vetnotes-me
-
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
+npm run dev     # http://localhost:5173
+npm test
 ```
 
-Visit `http://localhost:5173` in your browser.
+Cloud structuring and payments need server configuration and Google Cloud credentials (see
+[DEPLOYMENT.md](DEPLOYMENT.md)). Without them, the app runs with local structuring only.
 
 ---
 
-## 💰 Need Hosting or Premium Features?
+## The .vet format
 
-| If you want... | Go to... |
-|----------------|----------|
-| Zero-config hosting, automatic updates | **[vetnotes.me](https://vetnotes.me)** ($10/mo) |
-| Voice transcription, revenue detection, PIMS sync | **[vetnotes.pro](https://vetnotes.pro)** ($50/mo) |
-| Full practice management system | **[VetSorcery](https://vetsorcery.com)** (custom pricing) |
+VetNotes can export a note as a `.vet` file, a JSON format for veterinary clinical records, so notes
+are portable.
 
 ---
 
-## 📜 The .vet Standard
+## CPD Academy
 
-VetNotes uses the `.vet` file format — an open-source standard for veterinary clinical data exchange. Your notes are portable, not trapped.
+Module 1, *The AIVA Practice Audit*, is seeded when the application starts: the audit case, the
+private reveal document and the CPD session. The session links to its cases through `case_ids`. The
+route `/cpd/[moduleId]` loads the session from `cpd_sessions` and its cases from `cpd_cases`.
+
+Completing a module records self-directed study time (Module 1: 0.5 hours). This is a personal
+record, **not an accredited CPD award**. No accreditation is held with any veterinary board.
 
 ---
- 
-## Module 1 CPD Academy Launch Flow
- 
-Module 1 is titled The AIVA Practice Audit. This module is seeded automatically when the application starts. The seed process ensures that the audit case, the private reveal document, and the CPD session all exist in the database.
- 
-The session record links to the case via the case_ids field. The page route for a specific module is /cpd/[moduleId]. The server load function queries the cpd_sessions collection for a session where the module_id matches the route parameter. It then loads each linked case from the cpd_cases collection and returns both to the page component. The page renders the session title, the session description, and a list of cases included in the module.
- 
-To start the module, navigate to /cpd and open the module card. The module is free to access and awards 0.5 CPD hours on successful completion. The cases are listed in sequence order within the module.
- 
----
- 
+
+## Deploying
+
+See [DEPLOYMENT.md](DEPLOYMENT.md). In short: vetnotes.me is Cloud Run `vetnotes-cpd-ssr`, deployed
+with `npm run deploy:ssr` from a clean checkout of `main`.
+
 ## Contributing
- 
+
 PRs welcome. Please open an issue before major changes.
- 
-## ⚖️ License
- 
+
+## License
+
 MIT License — use, modify, and distribute freely.
- 
----
- 
-Built with ❤️ by **[AIVET.dev](https://aivet.dev)**

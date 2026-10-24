@@ -14,7 +14,7 @@
     "deploy:mvp": "echo 'vetnotes.me is SSR now — hosting rewrites ** to Cloud Run vetnotes-cpd-ssr. Use deploy:ssr (app) or deploy:ssr-hosting (rewrite config).' && exit 1",
     "deploy:ssr": "npm run predeploy:check && gcloud run deploy vetnotes-cpd-ssr --source . --region australia-southeast1 --project vetnotes-mvp --allow-unauthenticated --memory 512Mi --port 8080 --update-env-vars GOOGLE_CLOUD_PROJECT=vetsorcery --quiet",
     "deploy:ssr-hosting": "firebase deploy -P mvp --only hosting:ssr",
-    "deploy:pro": "npm run build && firebase deploy -P pro --only hosting:production",
+    "deploy:pro": "echo 'vetnotes.pro is a static hosting target, but the build is adapter-node (writes build-ssr/, not build/), so this would publish a stale or empty build/ over vetnotes.pro. Point vetnotes.pro at vetnotes.me instead — see DEPLOYMENT.md.' && exit 1",
     "deploy:vetcpd": "echo 'REMOVED: the vetcpd hosting site is owned by apps/vetcpd-academy (a different repo AND Firebase project). Running this published this repo stale vetcpd-dist/ over the live CPD Academy. Deploy from vetcpd-academy instead.' && exit 1",
     "predeploy:check": "bash scripts/ops/require-clean-tree.sh",
     "check:sdk": "node scripts/ops/check-sdk-resolves.mjs",

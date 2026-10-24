@@ -1,102 +1,108 @@
 # VetNotes Deployment Guide
 
-## 🏗️ Architecture Overview
+## Which repo and which site
 
-VetNotes Web is a static SvelteKit application designed for high-performance clinical data entry. It is designed to be hosted on Firebase Hosting but can be deployed to any static site host (Vercel, Netlify, GitHub Pages, etc.).
+- **This repo (`midnightnow/vetnotes-me`) is the only live VetNotes source.** It serves
+  **vetnotes.me** (and, historically, vetnotes.pro).
+- `vetnotes-pro`, `vetnotes-web`, `vetnotes-me-studio` and `Vetnotes-studio` are old scaffolds.
+  Nothing live is built from them. Do not deploy from them.
+
+| Site | Firebase project | How it is served |
+|------|------------------|------------------|
+| vetnotes.me | `vetnotes-mvp` (hosting target `ssr`) | Hosting rewrites `**` to Cloud Run **`vetnotes-cpd-ssr`** (australia-southeast1, adapter-node) |
+| vetnotes.pro | `vetnotes-pro` (hosting target `production`) | A static build from 2026-07-01. `npm run deploy:pro` is disabled (see below). |
+
+Auth users and all app data (CPD, Pro entitlements, notes sync) live in Firebase project
+**`vetsorcery`**, not `vetnotes-mvp`. The Cloud Run service runs with
+`GOOGLE_CLOUD_PROJECT=vetsorcery`.
 
 ---
 
-## 🚀 Quick Deploy (Firebase)
+## Deploy vetnotes.me (the app)
 
 ```bash
-cd vetnotes-web
-
-# 1. Build the application
-npm run build
-
-# 2. Deploy to Firebase Hosting
-firebase deploy --only hosting
+npm run deploy:ssr
 ```
 
----
+That runs `predeploy:check` (`scripts/ops/require-clean-tree.sh`, refuses a dirty tree) and then
+`gcloud run deploy vetnotes-cpd-ssr --source .`. The upload is whatever is on disk, filtered by
+`.gcloudignore`, so **deploy only from a clean checkout of a commit that is on `origin/main`.**
+The container (`Dockerfile`) runs `npm install` from `package.json` (not the lockfile) and
+`node build-ssr/index.js`.
 
-## 🔧 Configuration Files
+Only if `firebase.json`'s `ssr` rewrite changes:
 
-### `.firebaserc`
-Contains the mapping of local aliases to Firebase projects.
-```json
-{
-  "projects": {
-    "default": "your-firebase-project-id"
-  }
-}
+```bash
+npm run deploy:ssr-hosting
 ```
 
-### `firebase.json`
-Configuration for Firebase Hosting behavior.
-```json
-{
-  "hosting": {
-    "public": "build",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }]
-  }
-}
+When editing the service's env, use `--update-env-vars`. Never use `--set-env-vars`, which wipes the rest.
+
+## vetnotes.pro
+
+`npm run deploy:pro` exits with an error on purpose. The app builds with adapter-node into
+`build-ssr/`, so a static deploy of `build/` would publish a stale or empty site. The live
+vetnotes.pro bundle predates the clinical-safety fixes. The intended fix is to redirect
+vetnotes.pro to vetnotes.me. That is an owner action in the Firebase console or DNS.
+
+---
+
+## Runtime configuration (Cloud Run `vetnotes-cpd-ssr`)
+
+| Variable | Kind | Used by |
+|----------|------|---------|
+| `GOOGLE_CLOUD_PROJECT` | env (`vetsorcery`) | Admin SDK project for auth + Firestore |
+| `STRIPE_SECRET_KEY` | secret | Pro/CPD checkout; resolving refunds and disputes in the webhooks |
+| `VETNOTES_PRO_PRICE_ID` | env | Pro checkout (A$49/mo) |
+| `STRIPE_PRO_WEBHOOK_SECRET` | secret | `POST /api/pro/webhook` |
+| `CPD_PRICE_ID`, `CPD_CHECKOUT_MODE` | env | CPD checkout (unset = checkout returns 503, CPD sales off) |
+| `STRIPE_CPD_WEBHOOK_SECRET` | secret | `POST /api/cpd/webhook` |
+| `VERTEX_PROJECT` | env, optional | Vertex project for cloud SOAP structuring (default `vetsorcery`) |
+| `VETNOTES_SOAP_MODEL` | env, optional | Primary model (default `gemini-3.6-flash`, fallback `gemini-3.8-flash`) |
+
+Build-time (committed `.env.production`, public by design): `VITE_FIREBASE_API_KEY`,
+`VITE_GA_MEASUREMENT_ID`. No AI key is baked into the bundle.
+
+### IAM for the service account
+
+The service runs as `1071155694256-compute@developer.gserviceaccount.com`. On project `vetsorcery` it needs:
+
+- `roles/datastore.user` for Firestore (granted).
+- `roles/aiplatform.user` for cloud SOAP structuring (`/api/soap/structure`). Until this is granted,
+  the route returns `503 { configured: false }` and the editor falls back to local keyword rules,
+  saying so in its status line.
+
+### Stripe webhook endpoints
+
+Both endpoints need these events (`src/lib/server/stripe_webhook.ts`):
+
+- `https://vetnotes.me/api/pro/webhook`
+- `https://vetnotes.me/api/cpd/webhook`
+
+Events:
+
+- `checkout.session.completed`
+- `checkout.session.async_payment_succeeded`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `charge.refunded`
+- `charge.dispute.created`
+
+The Stripe account is shared with other products. Every checkout this app creates stamps
+`metadata.app_key=vetnotes`, so VetSorcery's webhook skips it. Do not remove that.
+
+---
+
+## Local development
+
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm test         # vitest
+npm run check    # svelte-check
 ```
 
----
-
-## 📦 Build Process
-
-The build process uses Vite to generate a static production version of the app:
-1. `npm run build` – Vite builds the SvelteKit static site into `./build`
-2. `firebase deploy` – Pushes the built assets to the hosting provider.
-
----
-
-## 🌐 Custom Domains
-
-To use your own domain (e.g., `vetnotes.me`):
-1. Navigate to Firebase Console → Hosting → Add custom domain.
-2. Follow the DNS verification steps.
-3. Once verified, Firebase will automatically provision SSL certificates.
-
----
-
-## 🔐 Environment Variables
-
-| Variable | Location | Purpose |
-|----------|----------|---------|
-| `VITE_GEMINI_API_KEY` | `.env` (optional) | Default API key for development |
-| `VITE_VETNOTES_API_URL` | `.env` (optional) | Backend API endpoint for PIMS sync |
-
----
-
-## 📊 Core Features (Open Source)
-
-- **Voice Recording:** Real-time capture of clinical consultations.
-- **Web Speech API:** Local transcription of spoken words.
-- **PII Redaction:** Automatic scrubbing of sensitive client data.
-- **Clinical Structuring:** Rule-based conversion of transcripts to SOAP format.
-- **PIMS Integration:** Standardized export for major practice management systems.
-- **Offline Capability:** Core functions work without an active internet connection.
-
----
-
-## 🐛 Troubleshooting
-
-### "Site not found" after deploy
-- Ensure the custom domain DNS has propagated.
-- Check Firebase Console → Hosting → Domain status.
-
-### Build issues
-- Ensure you are running Node.js v18+.
-- Verify all dependencies are installed with `npm install`.
-
----
-
-## 📅 Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0.0 | 2026-03-19 | Initial Professional Open Source Release |
+Install from inside this repo's own folder. Under the VET monorepo, npm hoists into the root
+workspace, and `npm ci` fails because the lockfile is out of sync with `package.json`. That is a
+known issue, and the reason the Dockerfile uses `npm install`.
