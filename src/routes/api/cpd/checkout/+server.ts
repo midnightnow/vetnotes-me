@@ -46,10 +46,23 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
   form.set('metadata[user_id]', locals.user.uid);
   form.set('metadata[product]', 'cpd_pass');
   form.set('metadata[plan]', 'all_access');
+  /* Safety control, not a label: vetsorcery-core's stripeWebhook skips sessions
+     whose app_key is set and not 'vet'. Without it a CPD sale on this shared
+     Stripe account could be provisioned as a clinic (the 2026-08-03 ebook
+     incident). See api/pro/checkout. */
+  form.set('metadata[app_key]', 'vetnotes');
   // Propagate metadata onto the subscription too, so renewal/cancel events map back.
   if (mode === 'subscription') {
     form.set('subscription_data[metadata][user_id]', locals.user.uid);
     form.set('subscription_data[metadata][product]', 'cpd_pass');
+    form.set('subscription_data[metadata][plan]', 'all_access');
+    form.set('subscription_data[metadata][app_key]', 'vetnotes');
+  } else {
+    // One-off pass: the payment intent carries the buyer, so a refund or dispute
+    // on its charge can be traced back and revoked (stripe_webhook.ts).
+    form.set('payment_intent_data[metadata][user_id]', locals.user.uid);
+    form.set('payment_intent_data[metadata][product]', 'cpd_pass');
+    form.set('payment_intent_data[metadata][app_key]', 'vetnotes');
   }
   if (locals.user.email) form.set('customer_email', locals.user.email);
   form.set('success_url', `${url.origin}${returnPath}?cpd_paid=1`);

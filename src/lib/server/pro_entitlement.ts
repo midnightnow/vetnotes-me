@@ -107,24 +107,34 @@ export async function hasProEntitlement(userId: string): Promise<boolean> {
 /** Grant Pro. Idempotent — re-running on a redelivered webhook is a no-op. */
 export async function grantProEntitlement(userId: string, meta: ProGrantMeta): Promise<void> {
 	if (!userId) return;
-	await adminDb
-		.collection(COLLECTION)
-		.doc(userId)
-		.set(
-			{
-				active: true,
-				plan: 'vetnotes_pro',
-				source: meta.source,
-				expires_at: null,
-				stripe_session_id: meta.stripeSessionId ?? null,
-				stripe_customer_id: meta.stripeCustomerId ?? null,
-				stripe_subscription_id: meta.stripeSubscriptionId ?? null,
-				email: meta.email ?? null,
-				granted_at: FieldValue.serverTimestamp()
-			},
-			{ merge: true }
-		);
+	await adminDb.collection(COLLECTION).doc(userId).set(proGrantFields(meta), { merge: true });
 }
+
+/**
+ * The fields a grant writes — shared with the webhook's transactional apply.
+ * Stripe ids are only written when known, so a subscription event (no session
+ * id) does not erase the id recorded at checkout. `expiresAt` comes from the
+ * subscription period end; null = kept alive by renewal events.
+ */
+export function proGrantFields(meta: ProGrantMeta & { expiresAt?: string | null }): Record<string, unknown> {
+	return {
+		active: true,
+		plan: 'vetnotes_pro',
+		source: meta.source,
+		expires_at: meta.expiresAt ?? null,
+		...(meta.stripeSessionId ? { stripe_session_id: meta.stripeSessionId } : {}),
+		...(meta.stripeCustomerId ? { stripe_customer_id: meta.stripeCustomerId } : {}),
+		...(meta.stripeSubscriptionId ? { stripe_subscription_id: meta.stripeSubscriptionId } : {}),
+		...(meta.email ? { email: meta.email } : {}),
+		granted_at: FieldValue.serverTimestamp()
+	};
+}
+
+export function proRevokeFields(reason: string): Record<string, unknown> {
+	return { active: false, revoked_reason: reason, revoked_at: FieldValue.serverTimestamp() };
+}
+
+export const PRO_ENTITLEMENT_COLLECTION = COLLECTION;
 
 /** Revoke Pro (cancellation, or a failed final payment). */
 export async function revokeProEntitlement(userId: string, reason: string): Promise<void> {
@@ -132,12 +142,5 @@ export async function revokeProEntitlement(userId: string, reason: string): Prom
 	await adminDb
 		.collection(COLLECTION)
 		.doc(userId)
-		.set(
-			{
-				active: false,
-				revoked_reason: reason,
-				revoked_at: FieldValue.serverTimestamp()
-			},
-			{ merge: true }
-		);
+		.set(proRevokeFields(reason), { merge: true });
 }
