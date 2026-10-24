@@ -6,7 +6,7 @@
         type SOAPNote,
         pushToPIMS,
     } from "$lib/services/aiva";
-    import { structureViaGemini } from "$lib/services/gemini";
+    import { structureViaCloud, structureViaGemini, CloudStructuringUnavailable } from "$lib/services/gemini";
     import { redactPII } from "$lib/utils/redactor";
     import { SOAP_TEMPLATES, FREE_TEMPLATE_KEYS } from "$lib/data/templates";
     import {
@@ -283,11 +283,17 @@
             }
             const redactedTranscript = redactPII(rawTranscript);
             try {
-                soapNote = await structureViaGemini(redactedTranscript, aivaApiKey);
-                status = "Structured via Cloud AI";
+                if (aivaApiKey) {
+                    soapNote = await structureViaGemini(redactedTranscript, aivaApiKey);
+                    status = "Structured with your Gemini key";
+                } else {
+                    soapNote = await structureViaCloud(redactedTranscript);
+                    status = "Structured via Cloud AI";
+                }
             } catch (e) {
+                // Keyword rules, not AI — say so, and say why the cloud path didn't run.
                 soapNote = await structureToSOAP(redactedTranscript, false);
-                status = "Structured via Local AI";
+                status = `Structured locally (keyword rules) — ${localFallbackReason(e)}`;
             }
             transcript = formatSOAPAsText(soapNote!);
             keyInsights = (soapNote?.missedCharges?.length || 0);
@@ -296,6 +302,18 @@
         } finally {
             isProcessing = false;
         }
+    }
+
+    function localFallbackReason(e: unknown): string {
+        if (e instanceof CloudStructuringUnavailable) {
+            switch (e.reason) {
+                case "signed_out": return "sign in for cloud AI";
+                case "not_pro": return "cloud AI is part of Pro";
+                case "not_configured": return "cloud AI unavailable";
+                case "rate_limited": return "cloud AI busy, try again shortly";
+            }
+        }
+        return "cloud AI failed";
     }
 
     function copyToClipboard() {
@@ -494,7 +512,7 @@
                 </div>
                 <p class="text-xs text-white/40 font-semibold mb-2">AI</p>
                 <p class="text-xs text-white/40 mb-6 leading-relaxed">
-                    Cloud SOAP structuring is included with VetNotes — there is nothing to set up here.
+                    Cloud SOAP structuring is included with VetNotes Pro — there is nothing to set up here.
                     If you'd rather run AI usage through your own Google AI account, paste a
                     <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="text-blue-400 underline">Gemini API key</a>
                     below and it will be used instead of ours.
@@ -503,7 +521,7 @@
                     <div>
                         <label for="gemini-key-input" class="block text-xs text-gray-500 font-semibold mb-2">Your Gemini API key (optional)</label>
                         <!-- svelte-ignore a11y-autofocus -->
-                        <input id="gemini-key-input" type="password" autofocus bind:value={aivaApiKey} placeholder="Paste key, or leave empty to use the built-in one" class="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"/>
+                        <input id="gemini-key-input" type="password" autofocus bind:value={aivaApiKey} placeholder="Optional — leave empty to use VetNotes cloud AI (Pro)" class="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"/>
                     </div>
                 </div>
                 <div class="mt-8 flex justify-end">

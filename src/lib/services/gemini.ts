@@ -1,94 +1,61 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { auth } from "$lib/firebase";
+import type { SOAPNote } from "$lib/types";
+import { AIVA_SYSTEM_PROMPT, buildSoapPrompt, parseSoapJson, SOAP_PRIMARY_MODEL } from "$lib/soapPrompt";
 
-// Initialize Gemini Client
-// WARNING: In a production app, calling this directly from the client exposes the API key.
-// Ensure your API key has referrer restrictions set in Google Cloud Console to only allow 'vetnotes.me' and 'vetnotes-mvp.web.app'.
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-
-const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
-    generationConfig: {
-        temperature: 0.3, // Lower for clinical accuracy and consistency
+/**
+ * Why cloud structuring did not run, phrased for the status line. The caller
+ * falls back to local keyword rules and should say which of these applied.
+ */
+export class CloudStructuringUnavailable extends Error {
+    constructor(public reason: "signed_out" | "not_pro" | "not_configured" | "rate_limited" | "failed") {
+        super(reason);
     }
-});
+}
 
-const AIVA_SYSTEM_PROMPT = `
-You are AIVA (Artificial Intelligence Veterinary Assistant), a specialist in veterinary documentation and CLINICAL PRECISION.
-Your task is to structure raw veterinary consultation transcripts into a professional SOAP note and IDENTIFY KEY CLINICAL PROCEDURES.
+/**
+ * Cloud structuring through the VetNotes server (`/api/soap/structure`), which
+ * calls Vertex with its own service account. No AI key ships in the bundle.
+ */
+export async function structureViaCloud(transcript: string): Promise<SOAPNote> {
+    const user = auth.currentUser;
+    if (!user) throw new CloudStructuringUnavailable("signed_out");
+    const token = await user.getIdToken();
 
-RULES:
-1. Output MUST be a valid JSON object. Do not include markdown formatting (like \`\`\`json) in the response.
-2. The JSON schema must be exactly:
-   {
-	 "subjective": "string",
-	 "objective": "string",
-	 "assessment": "string",
-	 "plan": "string",
-	 "missedCharges": ["string"]
-   }
-3. Use professional medical terminology (e.g. "vomiting" -> "emesis").
-4. Be concise and telegraphic style.
-
-HANDLING MISSING INFORMATION (CRITICAL — INFERENCE OVER EXTRACTION):
-- If a system was NOT explicitly examined or narrated, write "Not recorded" for that system. NEVER leave a field as an empty string.
-- If the vet implies a normal exam without specifics (e.g. "looks healthy", "everything else is fine", "unremarkable"), infer: "General physical exam: No abnormalities detected on systems examined. Specific vitals not narrated."
-- If vitals (HR, RR, Temp) are not mentioned, write "Vitals: Not narrated" — do NOT fabricate numbers.
-- If the vet only discusses one body system, note the examined system AND state "Remaining systems: Not examined/not narrated."
-- The goal is ZERO empty fields. Every field must contain either extracted data, an inference, or an explicit "Not recorded/Not narrated" statement.
-
-CLINICAL PROCEDURE DETECTION (CRITICAL):
-Scan the transcript for ANY procedures, items, or services mentioned. If mentioned or implied, add to "missedCharges" (to be reviewed by clinician).
-Examples to watch for:
-- "Nail trim" / "Pedicure"
-- "Cytology" / "Ear swab" / "Skin scrape"
-- "Fluids" / "Subcutaneous fluids" -> "Fluid Administration"
-- "Hospitalization" / "Day stay"
-- "Medical Waste" (if injections given)
-- "E-Collar" / "Cone"
-- "Urinalysis" / "Cystocentesis"
-- "Sedation" / "Torbugesic" / "Dexdomitor"
-- "Reverse" (Antisedan)
-
-If the input is empty or nonsense, return fields with "Not reported".
-`;
+    const res = await fetch("/api/soap/structure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ transcript })
+    });
+    if (res.status === 401) throw new CloudStructuringUnavailable("signed_out");
+    if (res.status === 403) throw new CloudStructuringUnavailable("not_pro");
+    if (res.status === 503) throw new CloudStructuringUnavailable("not_configured");
+    if (res.status === 429) throw new CloudStructuringUnavailable("rate_limited");
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.success || !data.soap) throw new CloudStructuringUnavailable("failed");
+    return data.soap as SOAPNote;
+}
 
 export const structureNote = structureViaGemini;
 
-export async function structureViaGemini(transcript: string, customApiKey?: string, templatePrompt?: string): Promise<any> {
-    const keyToUse = customApiKey || API_KEY;
+/**
+ * Bring-your-own-key path: calls Gemini from the browser with a key the user
+ * pasted into Settings (their key, their quota). There is no built-in key.
+ */
+export async function structureViaGemini(transcript: string, customApiKey?: string, templatePrompt?: string): Promise<SOAPNote> {
+    if (!customApiKey) throw new Error("No Gemini API key provided");
 
-    if (!keyToUse) {
-        console.error("Gemini API Key missing");
-        throw new Error("Gemini API Key not configured");
-    }
-
-    const genAI = new GoogleGenerativeAI(keyToUse);
+    const genAI = new GoogleGenerativeAI(customApiKey);
     const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
+        model: SOAP_PRIMARY_MODEL,
         generationConfig: {
-            temperature: 0.3,
+            temperature: 0.3, // Lower for clinical accuracy and consistency
         }
     });
 
-    const prompt = `
-    ${templatePrompt || AIVA_SYSTEM_PROMPT}
-
-    RAW TRANSCRIPT:
-    "${transcript}"
-
-    JSON OUTPUT:
-    `;
-
     try {
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-
-        // Clean up markdown code blocks if the model includes them despite instructions
-        const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
-
-        return JSON.parse(jsonStr);
+        const result = await model.generateContent(buildSoapPrompt(transcript, templatePrompt || AIVA_SYSTEM_PROMPT));
+        return parseSoapJson(result.response.text());
     } catch (error) {
         console.error("Gemini API Error:", error);
         throw error;
