@@ -65,11 +65,18 @@ export async function structureTranscript(
 
 	let lastError = 'no model attempted';
 	for (const model of modelChain()) {
-		const res = await fetchImpl(vertexUrl(model), {
-			method: 'POST',
-			headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-			body
-		});
+		let res: Response;
+		try {
+			res = await fetchImpl(vertexUrl(model), {
+				method: 'POST',
+				headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+				body,
+				signal: AbortSignal.timeout(20_000)
+			});
+		} catch (err) {
+			lastError = `${model}: ${(err as Error).message}`;
+			continue;
+		}
 		if (res.status === 401 || res.status === 403) {
 			throw new VertexNotConfiguredError(`Vertex refused the service account (${res.status})`);
 		}
@@ -86,7 +93,12 @@ export async function structureTranscript(
 			lastError = `${model}: empty reply`;
 			continue;
 		}
-		return { note: parseSoapJson(text), model };
+		try {
+			return { note: parseSoapJson(text), model };
+		} catch (err) {
+			lastError = `${model}: ${(err as Error).message}`;
+			continue;
+		}
 	}
 	throw new Error(`SOAP structuring failed (${lastError})`);
 }

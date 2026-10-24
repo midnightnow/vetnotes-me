@@ -11,11 +11,20 @@
   let isLoading = $state(false);
   let errorMsg = $state('');
 
-  onMount(() => {
-    const queryRedirect = $page.url.searchParams.get('redirectTo');
-    if (queryRedirect) {
-      redirectTo = decodeURIComponent(queryRedirect);
+  function safeRedirectPath(raw: string | null, fallback = '/cpd'): string {
+    if (!raw) return fallback;
+    try {
+      const decoded = decodeURIComponent(raw).trim();
+      return decoded.startsWith('/') && !decoded.startsWith('//') && !decoded.startsWith('/\\')
+        ? decoded
+        : fallback;
+    } catch {
+      return fallback;
     }
+  }
+
+  onMount(() => {
+    redirectTo = safeRedirectPath($page.url.searchParams.get('redirectTo'));
   });
 
   function parseAuthError(err: any): string {
@@ -50,7 +59,7 @@
 
     try {
       await signUpWithEmail(email, password, name);
-      await goto(redirectTo);
+      await goto(safeRedirectPath(redirectTo));
     } catch (err) {
       errorMsg = parseAuthError(err);
     } finally {
@@ -63,7 +72,7 @@
     errorMsg = '';
     try {
       await signInWithGoogle();
-      await goto(redirectTo);
+      await goto(safeRedirectPath(redirectTo));
     } catch (err) {
       errorMsg = parseAuthError(err);
     } finally {

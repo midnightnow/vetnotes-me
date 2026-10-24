@@ -42,7 +42,7 @@ RxWorks, IDEXX Neo or other PMS. For those, copy the note across.
 git clone https://github.com/midnightnow/vetnotes-me.git
 cd vetnotes-me
 npm install
-npm run dev     # http://localhost:5173
+npm run dev     # http://localhost:3000
 npm test
 ```
 

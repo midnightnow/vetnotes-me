@@ -98,9 +98,16 @@ export function generateDiagnosticTriggers(data: Record<string, unknown>): Derma
   }
 
   const parasiteControl = isObject(data.parasiteControl) ? data.parasiteControl : {};
-  const parasiteFrequencyDays = typeof parasiteControl.frequencyDays === 'number' ? parasiteControl.frequencyDays : 0;
-  const parasiteDurationDays = typeof parasiteControl.durationDays === 'number' ? parasiteControl.durationDays : 0;
-  const adequateParasiteControl = parasiteDurationDays >= DERMATOLOGY_GOLD_STANDARD.parasiteControlMinimumWeeks * 7 || parasiteFrequencyDays <= 31;
+  const parasiteFrequencyDays = typeof parasiteControl.frequencyDays === 'number' ? parasiteControl.frequencyDays : null;
+  const parasiteDurationDays = typeof parasiteControl.durationDays === 'number' ? parasiteControl.durationDays : null;
+  const parasiteCompliance = typeof parasiteControl.compliance === 'string' ? parasiteControl.compliance : '';
+  const adequateParasiteControl =
+    parasiteFrequencyDays !== null &&
+    parasiteFrequencyDays > 0 &&
+    parasiteFrequencyDays <= 31 &&
+    parasiteDurationDays !== null &&
+    parasiteDurationDays >= DERMATOLOGY_GOLD_STANDARD.parasiteControlMinimumWeeks * 7 &&
+    parasiteCompliance !== 'poor';
 
   const immunosuppressionHistory = Array.isArray(data.immunosuppressionHistory) ? data.immunosuppressionHistory : [];
   const incompleteSteroidWashout = immunosuppressionHistory.some((entry) => {
@@ -194,10 +201,9 @@ export function buildLeaderFormatPayload(
   partial: Partial<DermatologyLeaderFormatPayload> & Pick<DermatologyLeaderFormatPayload, 'patient' | 'referral' | 'chiefComplaint' | 'canineAtopicDermatitisWorkup' | 'dietTrial' | 'parasiteControl' | 'immunosuppressionHistory' | 'lesionDistribution' | 'cytology' | 'diagnostics'>
 ): DermatologyLeaderFormatPayload {
   const triggers = generateDiagnosticTriggers(partial);
-  const quality = computeQuality(partial as Record<string, unknown>);
   const now = new Date().toISOString();
 
-  return {
+  const payload: DermatologyLeaderFormatPayload = {
     schemaVersion: 'dermatology-leader-format:v1.0.0',
     protocolId: 'LF-DERM-FNQ',
     specialty: 'Dermatology',
@@ -215,24 +221,42 @@ export function buildLeaderFormatPayload(
     diagnostics: partial.diagnostics,
     diagnosticTriggerFlags: triggers,
     referralQuality: {
-      protocolAdherenceScore: quality.protocolAdherenceScore,
-      metadataCompletenessScore: quality.completenessScore,
-      missingCriticalMetadata: quality.missingCriticalMetadata
+      protocolAdherenceScore: 0,
+      metadataCompletenessScore: 0,
+      missingCriticalMetadata: []
     },
     researchDataset: {
       protocolVersion: 'dermatology-leader-format:v1.0.0',
       source: 'vetsorcery_scribe',
       clinicianConfirmed: false,
       consentForResearch: false,
-      completenessScore: quality.completenessScore,
-      adherenceScore: quality.protocolAdherenceScore
+      completenessScore: 0,
+      adherenceScore: 0
     },
     audit: {
-      schemaValidated: validateMetadata(partial).valid,
+      schemaValidated: false,
       generatedBy: 'vetsorcery-scribe',
       generatedAt: now
     }
   };
+
+  const quality = computeQuality(payload as unknown as Record<string, unknown>);
+  payload.referralQuality = {
+    protocolAdherenceScore: quality.protocolAdherenceScore,
+    metadataCompletenessScore: quality.completenessScore,
+    missingCriticalMetadata: quality.missingCriticalMetadata
+  };
+  payload.researchDataset = {
+    ...payload.researchDataset,
+    completenessScore: quality.completenessScore,
+    adherenceScore: quality.protocolAdherenceScore
+  };
+  payload.audit = {
+    ...payload.audit,
+    schemaValidated: validateMetadata(payload).valid
+  };
+
+  return payload;
 }
 
 function loadDermatologySchema(): JsonSchemaLike {
@@ -682,7 +706,11 @@ function computeProtocolAdherenceScore(data: Record<string, unknown>): number {
     }
   }
 
-  if (typeof parasiteControl.durationDays === 'number' && parasiteControl.durationDays < DERMATOLOGY_GOLD_STANDARD.parasiteControlMinimumWeeks * 7) {
+  if (
+    typeof parasiteControl.durationDays !== 'number' ||
+    parasiteControl.durationDays < DERMATOLOGY_GOLD_STANDARD.parasiteControlMinimumWeeks * 7 ||
+    parasiteControl.compliance === 'poor'
+  ) {
     score -= 10;
   }
 

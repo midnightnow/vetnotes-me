@@ -189,4 +189,13 @@ describe('handleEntitlementEvent + firestoreStore', () => {
 		const out = await handleEntitlementEvent(ev('charge.refunded', { id: 'ch_1', refunded: true }), opts(db));
 		expect(out).toMatch(/no STRIPE_SECRET_KEY/);
 	});
+
+	it('throws on transient Stripe API errors (5xx/429) so the webhook returns 500 for retry', async () => {
+		const db = fakeDb();
+		const fetchImpl = (async () => new Response('rate limit', { status: 429 })) as unknown as typeof fetch;
+		const dispute = ev('charge.dispute.created', { id: 'dp_1', charge: 'ch_1' }, 300, 'evt_dp1');
+		await expect(handleEntitlementEvent(dispute, opts(db, { stripeSecret: 'sk_test', fetchImpl }))).rejects.toThrow(
+			/Stripe GET charges\/ch_1 failed: HTTP 429/
+		);
+	});
 });

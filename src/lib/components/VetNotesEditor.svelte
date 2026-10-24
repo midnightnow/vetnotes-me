@@ -164,7 +164,31 @@
     });
 
     onDestroy(() => {
-        if (timerInterval) clearInterval(timerInterval as any);
+        isRecording = false;
+        if (timerInterval) {
+            clearInterval(timerInterval as any);
+            timerInterval = null;
+        }
+        if (draftTimer) {
+            clearTimeout(draftTimer);
+            draftTimer = null;
+        }
+        if (recognition) {
+            recognition.onend = null;
+            recognition.onresult = null;
+            recognition.onerror = null;
+            try { recognition.stop(); } catch { /* ignore */ }
+            recognition = null;
+        }
+        if (mediaRecorder) {
+            mediaRecorder.onstop = null;
+            mediaRecorder.ondataavailable = null;
+            try {
+                if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
+            } catch { /* ignore */ }
+            mediaRecorder.stream?.getTracks().forEach((track) => track.stop());
+            mediaRecorder = null;
+        }
     });
 
     function formatTime(seconds: number): string {

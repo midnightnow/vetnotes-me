@@ -39,8 +39,10 @@ function overLimit(uid: string, now = Date.now()): boolean {
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.user) throw error(401, 'Unauthorized');
 
-	const body = await request.json().catch(() => ({}));
-	const transcript = typeof body.transcript === 'string' ? body.transcript.trim() : '';
+	const body = await request.json().catch(() => null);
+	const rawTranscript =
+		body && typeof body === 'object' ? (body as Record<string, unknown>).transcript : undefined;
+	const transcript = typeof rawTranscript === 'string' ? rawTranscript.trim() : '';
 	if (!transcript) return json({ success: false, error: 'transcript required' }, { status: 400 });
 	if (transcript.length > MAX_TRANSCRIPT_CHARS) {
 		return json({ success: false, error: `transcript longer than ${MAX_TRANSCRIPT_CHARS} characters` }, { status: 400 });

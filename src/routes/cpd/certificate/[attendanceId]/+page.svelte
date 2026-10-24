@@ -54,7 +54,7 @@
       <div class="grid grid-cols-2 gap-12 pt-12 text-left max-w-2xl mx-auto">
         <div class="space-y-1">
           <p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest">CPD Hours (self-directed)</p>
-          <p class="text-xl font-bold text-gray-800">{((session.duration_minutes || 60) / 60).toFixed(1)} hours</p>
+          <p class="text-xl font-bold text-gray-800">{typeof session.duration_minutes === 'number' && session.duration_minutes > 0 ? `${(session.duration_minutes / 60).toFixed(1)} hours` : 'N/A'}</p>
         </div>
         <div class="space-y-1">
           <p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest">Date of Completion</p>
@@ -77,7 +77,9 @@
       <div class="text-right space-y-1">
         <p class="text-[8px] uppercase font-bold text-gray-400">Verification ID</p>
         <p class="text-[10px] font-mono text-gray-600">{attendance.id || 'N/A'}</p>
-        <div class="text-[8px] text-gray-400 mt-2">Verify at vetnotes.me/verify/{attendance.id || ''}</div>
+        {#if attendance.id}
+          <div class="text-[8px] text-gray-400 mt-2">Verify at vetnotes.me/verify/{attendance.id}</div>
+        {/if}
       </div>
     </div>
   </div>

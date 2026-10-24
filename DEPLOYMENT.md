@@ -98,7 +98,7 @@ The Stripe account is shared with other products. Every checkout this app create
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
+npm run dev      # http://localhost:3000
 npm test         # vitest
 npm run check    # svelte-check
 ```

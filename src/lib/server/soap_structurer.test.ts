@@ -66,7 +66,7 @@ describe('structureTranscript', () => {
 		expect(urls[0]).toMatch(/locations\/global\/publishers\/google\/models\/gemini-3\.6-flash:generateContent$/);
 	});
 
-	it('walks to the fallback model on 404/429', async () => {
+	it('walks to the fallback model on 404/429 or malformed JSON', async () => {
 		const seen: string[] = [];
 		const fetchImpl = (async (url: string) => {
 			seen.push(url);
@@ -75,6 +75,12 @@ describe('structureTranscript', () => {
 		const res = await structureTranscript('x', fetchImpl, token);
 		expect(res.model).toBe('gemini-3.8-flash');
 		expect(seen).toHaveLength(2);
+
+		const malformedFetch = (async (url: string) => {
+			return url.includes('3.6') ? vertexOk('not valid json') : vertexOk(JSON.stringify(SOAP));
+		}) as unknown as typeof fetch;
+		const res2 = await structureTranscript('x', malformedFetch, token);
+		expect(res2.model).toBe('gemini-3.8-flash');
 	});
 
 	it('reports "not configured" when Vertex refuses the service account', async () => {

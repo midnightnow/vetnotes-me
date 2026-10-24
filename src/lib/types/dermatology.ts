@@ -187,9 +187,14 @@ export interface DermatologyCytology {
   sites: DermatologyCytologySite[];
 }
 
+export type RecommendedDiagnosticType = Exclude<
+  DiagnosticType,
+  'skin_scrape' | 'trichogram' | 'wood_lamp' | 'endocrine_testing'
+>;
+
 export interface DermatologyDiagnostics {
   performed: DiagnosticType[];
-  recommended: DiagnosticType[];
+  recommended: RecommendedDiagnosticType[];
   idexxPanelCandidate?: boolean;
   idexxPanelRationale?: string;
 }

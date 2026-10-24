@@ -152,7 +152,8 @@ type Fetch = typeof fetch;
 
 async function stripeGet(path: string, secret: string, fetchImpl: Fetch): Promise<Record<string, any> | null> {
 	const res = await fetchImpl(`https://api.stripe.com/v1/${path}`, { headers: { Authorization: `Bearer ${secret}` } });
-	if (!res.ok) return null;
+	if (res.status === 404) return null;
+	if (!res.ok) throw new Error(`Stripe GET ${path} failed: HTTP ${res.status}`);
 	return (await res.json()) as Record<string, any>;
 }
 
