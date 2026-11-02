@@ -1,4 +1,4 @@
-/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/render.ts @ dafb4a1a.
+/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/render.ts @ ee5677fa (PR #135).
    Change it there first and re-copy; reader.test.ts checks this copy against core's example file. */
 /**
  * The readable rendering of a VetNotes Record: plain text a vet can read top to
@@ -68,15 +68,15 @@ export function renderRecordText(record: VetRecord): string {
   if (record.owner) line(`Owner: ${join([record.owner.name, record.owner.phone, record.owner.email]) || NOT_RECORDED}`);
 
   if (record.purpose) {
-    heading('Reason for referral', "(the referring vet's words)");
+    heading(record.kind === 'referral' ? 'Reason for referral' : 'Reason', record.kind === 'referral' ? "(the referring vet's words)" : "(the sending vet's words)");
     line(or(record.purpose.reason));
     for (const q of record.purpose.questions) line(`- ${q}`);
   }
 
   heading('Allergies');
   if (f.allergies.status === 'listed') for (const a of f.allergies.items) line(`- ${join([a.substance, a.reaction], ' — ')}`);
-  else if (f.allergies.status === 'none_known') line('No known allergies (recorded as such in the source).');
-  else line(`${NOT_RECORDED}. The source has no allergy entry; this does not mean there are none.`);
+  else if (f.allergies.status === 'none_known') line('No known allergies, as recorded by the sending clinic.');
+  else line(`${NOT_RECORDED} in this file. This does not mean there are none.`);
 
   if (record.kind !== 'passport') {
     const onRecord = f.medications.some((m) => m.status === 'on_record');
@@ -105,7 +105,8 @@ export function renderRecordText(record: VetRecord): string {
 
   if (f.weights.length) {
     heading('Weights');
-    for (const w of f.weights) line(`- ${formatDay(w.date)}: ${w.kg} kg`);
+    // A weight with no date must not read as a missing weight.
+    for (const w of f.weights) line(w.date ? `- ${formatDay(w.date)}: ${w.kg} kg` : `- ${w.kg} kg (date not recorded)`);
   }
 
   if (f.vaccinations.length || record.kind === 'passport') {

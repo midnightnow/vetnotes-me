@@ -76,6 +76,26 @@ describe('readVetnotesFile', () => {
     ]));
   });
 
+  it("shows a note that says \"verified: no\" in ordinary prose, and refuses a reformatted scribe stamp", async () => {
+    const withNote = (text: string) => {
+      const record = JSON.parse(exampleVet);
+      record.notes[0].sections[0].text = text;
+      return readVetnotesFile(JSON.stringify(record));
+    };
+    expect((await withNote('Microchip verified: no chip found on scan.')).kind).toBe('record');
+    for (const stamped of ['⚠️ VERIFIED: No\nAssessment: otitis', '**VERIFIED: No**', 'VERIFIED: No Gastritis likely']) {
+      expect((await withNote(stamped)).kind).toBe('invalid');
+    }
+  });
+
+  it('a huge file of blank lines cannot hang the reader', async () => {
+    const record = JSON.parse(exampleVet);
+    record.notes[0].sections[0].text = '\n'.repeat(4_000_000) + 'x';
+    const started = Date.now();
+    await readVetnotesFile(JSON.stringify(record));
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
   it("recognises VetNotes' older SOAP export and explains it cannot be checked", async () => {
     const old = { version: '1.1', type: 'soap_note', id: 'vet_1', source: 'vetnotes', patient: { id: 'x', species: 'canine' }, data: { subjective: 's' } };
     const out = await readVetnotesFile(JSON.stringify(old));

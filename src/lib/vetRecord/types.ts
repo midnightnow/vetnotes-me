@@ -1,4 +1,4 @@
-/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/types.ts @ dafb4a1a.
+/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/types.ts @ ee5677fa (PR #135).
    Change it there first and re-copy; reader.test.ts checks this copy against core's example file. */
 /**
  * VetNotes Record — the portable clinical record file (`.vet`, format "vetnotes.record").
