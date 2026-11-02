@@ -90,10 +90,12 @@ describe('readVetnotesFile', () => {
 
   it('a huge file of blank lines cannot hang the reader', async () => {
     const record = JSON.parse(exampleVet);
-    record.notes[0].sections[0].text = '\n'.repeat(4_000_000) + 'x';
+    // Each newline is two bytes in JSON: this stays under the 5 MB limit, so the check really runs.
+    record.notes[0].sections[0].text = '\n'.repeat(2_400_000) + 'x';
     const started = Date.now();
-    await readVetnotesFile(JSON.stringify(record));
+    const out = await readVetnotesFile(JSON.stringify(record));
     expect(Date.now() - started).toBeLessThan(2000);
+    expect(out.kind).toBe('record');
   });
 
   it("recognises VetNotes' older SOAP export and explains it cannot be checked", async () => {
