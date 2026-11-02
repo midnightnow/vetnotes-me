@@ -1,5 +1,5 @@
 /* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/canonical.ts @ dafb4a1a.
-   Change it there first and re-copy; parity.test.ts checks this copy against core's example file. */
+   Change it there first and re-copy; reader.test.ts checks this copy against core's example file. */
 /**
  * RFC 8785 JSON Canonicalization Scheme (JCS) for the values a record holds:
  * object keys sorted by UTF-16 code units, no whitespace, strings and numbers

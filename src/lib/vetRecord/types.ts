@@ -1,5 +1,5 @@
 /* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/types.ts @ dafb4a1a.
-   Change it there first and re-copy; parity.test.ts checks this copy against core's example file. */
+   Change it there first and re-copy; reader.test.ts checks this copy against core's example file. */
 /**
  * VetNotes Record — the portable clinical record file (`.vet`, format "vetnotes.record").
  *

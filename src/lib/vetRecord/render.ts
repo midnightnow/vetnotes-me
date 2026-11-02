@@ -1,5 +1,5 @@
 /* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/render.ts @ dafb4a1a.
-   Change it there first and re-copy; parity.test.ts checks this copy against core's example file. */
+   Change it there first and re-copy; reader.test.ts checks this copy against core's example file. */
 /**
  * The readable rendering of a VetNotes Record: plain text a vet can read top to
  * bottom, print, or paste into any PMS. Deterministic (no clock, no locale), and

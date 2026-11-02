@@ -23,21 +23,26 @@
 
     const integrity = $derived(outcome?.kind === 'record' ? integrityMessage(outcome.integrity) : null);
 
+    // One file at a time, and the name is set with the result it belongs to, so a second
+    // drop while the first is still reading can never pair one file's name with another's record.
     async function openFile(file: File | null | undefined) {
-        if (!file) return;
+        if (!file || busy) return;
         busy = true;
         copied = false;
-        fileName = file.name;
+        const name = file.name;
+        let next: ReaderOutcome;
         try {
-            outcome = file.size > MAX_FILE_BYTES
+            next = file.size > MAX_FILE_BYTES
                 ? { kind: 'unreadable', message: 'This file is too large to be a VetNotes file.' }
                 : await readVetnotesFile(await file.text());
         } catch {
-            outcome = { kind: 'unreadable', message: 'This file could not be read.' };
+            next = { kind: 'unreadable', message: 'This file could not be read.' };
         } finally {
             busy = false;
             if (input) input.value = '';
         }
+        fileName = name;
+        outcome = next;
     }
 
     function onDrop(e: DragEvent) {

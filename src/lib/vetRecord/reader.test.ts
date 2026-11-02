@@ -62,6 +62,20 @@ describe('readVetnotesFile', () => {
     expect(out).toEqual({ kind: 'invalid', errors: ['notes[0].author: must be a name, not an email address'] });
   });
 
+  it('reports a garbled file as invalid instead of throwing (null list items, missing author, impossible date)', async () => {
+    const record = JSON.parse(exampleVet);
+    record.notes.push(null);
+    delete record.issuer.author;
+    record.subject.dob = '2026-02-30';
+    const out = await readVetnotesFile(JSON.stringify(record));
+    expect(out.kind).toBe('invalid');
+    expect(out.kind === 'invalid' && out.errors).toEqual(expect.arrayContaining([
+      'issuer.author: required (its name may be null)',
+      'subject.dob: must be YYYY-MM-DD or null',
+      'notes[1]: must be an object',
+    ]));
+  });
+
   it("recognises VetNotes' older SOAP export and explains it cannot be checked", async () => {
     const old = { version: '1.1', type: 'soap_note', id: 'vet_1', source: 'vetnotes', patient: { id: 'x', species: 'canine' }, data: { subjective: 's' } };
     const out = await readVetnotesFile(JSON.stringify(old));
