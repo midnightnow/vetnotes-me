@@ -1,4 +1,4 @@
-/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/validate.ts @ 2f0c9b4e (PR #133).
+/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/validate.ts @ ee5677fa (PR #135).
    Change it there first and re-copy; reader.test.ts checks this copy against core's example file. */
 /**
  * Structural and privacy validation for a VetNotes Record. A reader runs this
@@ -22,8 +22,16 @@ const PROBLEM_STATUSES = ['active', 'resolved', 'not_recorded'];
 const ALLERGY_STATUSES = ['listed', 'none_known', 'not_recorded'];
 const ATTACHMENT_KINDS = ['radiograph', 'lab_report', 'image', 'document', 'other'];
 
-/** The AI scribe's own "not yet verified" stamp (voiceNotesProcessor). Such a note never travels. */
-export const UNVERIFIED_AI_MARKER = /\bVERIFIED:\s*No\b/i;
+/**
+ * The AI scribe's own "not yet verified" stamp (voiceNotesProcessor writes
+ * `⚠️ VERIFIED: No` on its own line). Such a note never travels. Capitals match
+ * anywhere, however the stamp was reformatted on the way (`**VERIFIED: No**`,
+ * `(VERIFIED: No)`, run together with the next sentence). Any other casing counts
+ * only as a line of its own, so ordinary prose such as "microchip verified: no
+ * chip found" is not blamed on the scribe. Server gates (referralPacket.ts,
+ * shareTokens.ts) keep their own broader check, which is safe there.
+ */
+export const UNVERIFIED_AI_MARKER = /VERIFIED:\s*N[Oo]\b|^[^\p{L}\p{N}]*[Vv][Ee][Rr][Ii][Ff][Ii][Ee][Dd]:\s*[Nn][Oo][^\p{L}\p{N}]*$/mu;
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const INSTANT = /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
@@ -181,6 +189,7 @@ export function validateRecord(input: unknown): ValidationResult {
       if (!Array.isArray(n.sections) || n.sections.length === 0) err(`${p}.sections`, 'a note carries at least one section of text');
       else each(n.sections, `${p}.sections`, (s, sp) => {
         if (!isStrOrNull(s.heading)) err(`${sp}.heading`, 'must be a string or null');
+        else if (isStr(s.heading) && UNVERIFIED_AI_MARKER.test(s.heading)) err(`${sp}.heading`, 'carries the unverified AI-draft marker; such a note never travels');
         if (!isNonEmpty(s.text)) err(`${sp}.text`, 'required (an empty section is left out, not carried empty)');
         else if (UNVERIFIED_AI_MARKER.test(s.text)) err(`${sp}.text`, 'carries the unverified AI-draft marker; such a note never travels');
       });

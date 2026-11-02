@@ -1,4 +1,4 @@
-/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/canonical.ts @ dafb4a1a.
+/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/canonical.ts @ ee5677fa (PR #135).
    Change it there first and re-copy; reader.test.ts checks this copy against core's example file. */
 /**
  * RFC 8785 JSON Canonicalization Scheme (JCS) for the values a record holds:
