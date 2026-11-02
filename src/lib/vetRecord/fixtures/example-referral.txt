@@ -1,0 +1,44 @@
+VETNOTES RECORD — Referral
+Bella · Canine · Labrador Retriever · Female · born 4 Mar 2019
+From: Example Vet Clinic · Dr Alex Example · 07 4000 0000
+To: Example Specialist Referral Centre · Dr Sam Specialist
+Made: 2026-11-02T09:30:00+10:00 (clinical dates are days in Australia/Brisbane)
+Owner: Jordan Owner · 0400 000 000
+
+REASON FOR REFERRAL (the referring vet's words)
+Please assess L stifle for TPLO.
+- Is the R stifle at risk?
+
+ALLERGIES
+- Cephalexin — vomiting
+
+MEDICATIONS ON RECORD (recorded as active; not confirmed current)
+- Meloxicam 1.5 mg/mL oral suspension — 2.1 mL (0.1 mg/kg) — once daily with food — 14 days
+  prescribed 28 Oct 2026, script expires 28 Apr 2027
+  Instructions: Stop and call if vomiting or black stools.
+
+PROBLEMS
+- Left hindlimb lameness
+
+WEIGHTS
+- 28 Oct 2026: 31.2 kg
+
+IMAGING
+- ref study-stifle-2026-10-28
+
+ORIGINAL NOTES (word for word)
+
+── 28 Oct 2026 · VetSorcery (Example Vet Clinic) · author not recorded · finalised
+Problem: Left hindlimb lameness
+Subjective
+Acute non-weight-bearing L hind after chasing ball on 26/10. Owner reports no improvement on rest.
+Objective
+T 38.6. Grade 4/5 lameness LH. Positive cranial drawer and tibial thrust L stifle. Medial buttress palpable. R stifle stable.
+Assessment
+Suspect L cranial cruciate ligament rupture.
+Plan
+Meloxicam 0.1 mg/kg PO SID. Strict rest. Refer for orthopaedic assessment, TPLO consult.
+
+INTEGRITY
+sha256 0b317c4cfdd5e4da90239e0af17a5d6a754d2beef925a0f272f79629d0e4a9e1 (JCS).
+This shows the file has not changed since it was made. It does not prove who made it.

@@ -1,0 +1,168 @@
+{
+  "format": "vetnotes.record",
+  "version": "1.0.0",
+  "id": "7d0c2b1e-5f43-4a7e-9a51-2f6a1c9e8b10",
+  "kind": "referral",
+  "created_at": "2026-11-02T09:30:00+10:00",
+  "time_zone": "Australia/Brisbane",
+  "issuer": {
+    "clinic": {
+      "name": "Example Vet Clinic",
+      "phone": "07 4000 0000",
+      "email": "reception@example-vet.test",
+      "address": "1 Example St, Cairns QLD"
+    },
+    "author": {
+      "name": "Dr Alex Example",
+      "role": "Veterinarian"
+    },
+    "software": {
+      "name": "VetSorcery",
+      "version": "93e19519"
+    }
+  },
+  "recipient": {
+    "clinic": "Example Specialist Referral Centre",
+    "vet": "Dr Sam Specialist"
+  },
+  "purpose": {
+    "reason": "Please assess L stifle for TPLO.",
+    "questions": [
+      "Is the R stifle at risk?"
+    ]
+  },
+  "subject": {
+    "name": "Bella",
+    "species": "Canine",
+    "breed": "Labrador Retriever",
+    "sex": "Female",
+    "desexed": null,
+    "dob": "2019-03-04",
+    "colour": null
+  },
+  "owner": {
+    "name": "Jordan Owner",
+    "phone": "0400 000 000",
+    "email": null
+  },
+  "sources": [
+    {
+      "id": "s1",
+      "system": "vetsorcery",
+      "clinic": "Example Vet Clinic",
+      "captured_at": "2026-11-02T09:30:00+10:00",
+      "method": "export",
+      "reference": "P-1042"
+    }
+  ],
+  "notes": [
+    {
+      "id": "n1",
+      "source": "s1",
+      "date": "2026-10-28",
+      "author": null,
+      "signoff": "finalised",
+      "kind": "consult",
+      "problem": "Left hindlimb lameness",
+      "sections": [
+        {
+          "heading": "Subjective",
+          "text": "Acute non-weight-bearing L hind after chasing ball on 26/10. Owner reports no improvement on rest."
+        },
+        {
+          "heading": "Objective",
+          "text": "T 38.6. Grade 4/5 lameness LH. Positive cranial drawer and tibial thrust L stifle. Medial buttress palpable. R stifle stable."
+        },
+        {
+          "heading": "Assessment",
+          "text": "Suspect L cranial cruciate ligament rupture."
+        },
+        {
+          "heading": "Plan",
+          "text": "Meloxicam 0.1 mg/kg PO SID. Strict rest. Refer for orthopaedic assessment, TPLO consult."
+        }
+      ],
+      "sha256": "dd97ce573af1d2ff26c8414dd0609b2e139d7074f794a096453b35acee384339"
+    }
+  ],
+  "facts": {
+    "problems": [
+      {
+        "id": "p1",
+        "origin": "record",
+        "source": "s1",
+        "evidence": [
+          "n1"
+        ],
+        "title": "Left hindlimb lameness",
+        "status": "not_recorded",
+        "onset": null,
+        "resolved": null
+      }
+    ],
+    "medications": [
+      {
+        "id": "m1",
+        "origin": "record",
+        "source": "s1",
+        "evidence": [],
+        "name": "Meloxicam 1.5 mg/mL oral suspension",
+        "dose": "2.1 mL (0.1 mg/kg)",
+        "frequency": "once daily with food",
+        "route": null,
+        "duration": "14 days",
+        "instructions": "Stop and call if vomiting or black stools.",
+        "prescribed": "2026-10-28",
+        "end": null,
+        "script_expires": "2027-04-28",
+        "status": "on_record"
+      }
+    ],
+    "allergies": {
+      "status": "listed",
+      "items": [
+        {
+          "id": "a1",
+          "origin": "record",
+          "source": "s1",
+          "evidence": [],
+          "substance": "Cephalexin — vomiting",
+          "reaction": null
+        }
+      ]
+    },
+    "vaccinations": [],
+    "weights": [
+      {
+        "id": "w1",
+        "origin": "record",
+        "source": "s1",
+        "evidence": [],
+        "date": "2026-10-28",
+        "kg": 31.2
+      }
+    ],
+    "labs": [],
+    "imaging": [
+      {
+        "id": "i1",
+        "origin": "record",
+        "source": "s1",
+        "evidence": [],
+        "date": null,
+        "modality": null,
+        "description": null,
+        "study_ref": "study-stifle-2026-10-28",
+        "attachment": null
+      }
+    ],
+    "visits": []
+  },
+  "attachments": [],
+  "omissions": [],
+  "integrity": {
+    "algorithm": "sha256",
+    "canonicalization": "JCS",
+    "content_sha256": "0b317c4cfdd5e4da90239e0af17a5d6a754d2beef925a0f272f79629d0e4a9e1"
+  }
+}
