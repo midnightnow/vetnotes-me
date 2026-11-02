@@ -1,4 +1,4 @@
-/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/validate.ts @ ee5677fa (PR #135).
+/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/validate.ts @ e9d167d1 (PR #136).
    Change it there first and re-copy; reader.test.ts checks this copy against core's example file. */
 /**
  * Structural and privacy validation for a VetNotes Record. A reader runs this
@@ -30,8 +30,10 @@ const ATTACHMENT_KINDS = ['radiograph', 'lab_report', 'image', 'document', 'othe
  * only as a line of its own, so ordinary prose such as "microchip verified: no
  * chip found" is not blamed on the scribe. Server gates (referralPacket.ts,
  * shareTokens.ts) keep their own broader check, which is safe there.
+ * The line-only branch must not match line ends: a reader opens files from
+ * anywhere, and rescanning blank lines from every line start would hang it.
  */
-export const UNVERIFIED_AI_MARKER = /VERIFIED:\s*N[Oo]\b|^[^\p{L}\p{N}]*[Vv][Ee][Rr][Ii][Ff][Ii][Ee][Dd]:\s*[Nn][Oo][^\p{L}\p{N}]*$/mu;
+export const UNVERIFIED_AI_MARKER = /VERIFIED:\s*N[Oo]\b|^[^\p{L}\p{N}\r\n\u2028\u2029]*[Vv][Ee][Rr][Ii][Ff][Ii][Ee][Dd]:[ \t]*[Nn][Oo][^\p{L}\p{N}\r\n\u2028\u2029]*$/mu;
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const INSTANT = /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;

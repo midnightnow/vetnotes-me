@@ -88,6 +88,14 @@ describe('readVetnotesFile', () => {
     }
   });
 
+  it('a huge file of blank lines cannot hang the reader', async () => {
+    const record = JSON.parse(exampleVet);
+    record.notes[0].sections[0].text = '\n'.repeat(4_000_000) + 'x';
+    const started = Date.now();
+    await readVetnotesFile(JSON.stringify(record));
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
   it("recognises VetNotes' older SOAP export and explains it cannot be checked", async () => {
     const old = { version: '1.1', type: 'soap_note', id: 'vet_1', source: 'vetnotes', patient: { id: 'x', species: 'canine' }, data: { subjective: 's' } };
     const out = await readVetnotesFile(JSON.stringify(old));
