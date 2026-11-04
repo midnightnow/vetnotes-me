@@ -1,4 +1,4 @@
-/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/validate.ts @ e9d167d1 (PR #136).
+/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/validate.ts @ b41dd0d1 (PR #150).
    Change it there first and re-copy; reader.test.ts checks this copy against core's example file. */
 /**
  * Structural and privacy validation for a VetNotes Record. A reader runs this
@@ -17,6 +17,7 @@ const SYSTEMS = ['vetsorcery', 'ezyvet', 'rxworks', 'vetnotes', 'other'];
 const METHODS = ['export', 'page', 'document', 'typed'];
 const ORIGINS = ['record', 'page', 'entered'];
 const SIGNOFFS = ['signed', 'finalised', 'unsigned', 'unknown'];
+const SIGNERS = ['vet', 'clinic_owner_unverified'];
 const MED_STATUSES = ['on_record', 'current', 'past'];
 const PROBLEM_STATUSES = ['active', 'resolved', 'not_recorded'];
 const ALLERGY_STATUSES = ['listed', 'none_known', 'not_recorded'];
@@ -187,6 +188,10 @@ export function validateRecord(input: unknown): ValidationResult {
       if (!isDayOrNull(n.date)) err(`${p}.date`, 'must be YYYY-MM-DD or null');
       if (!isPersonOrNull(n.author)) err(`${p}.author`, 'must be a name, not an email address');
       if (!SIGNOFFS.includes(n.signoff)) err(`${p}.signoff`, `must be one of ${SIGNOFFS.join(', ')}`);
+      if (n.signer !== undefined) {
+        if (!SIGNERS.includes(n.signer)) err(`${p}.signer`, `must be one of ${SIGNERS.join(', ')}`);
+        else if (n.signoff !== 'signed') err(`${p}.signer`, 'only a signed note names its signer');
+      }
       optStrs(p, n, ['kind', 'problem']);
       if (!Array.isArray(n.sections) || n.sections.length === 0) err(`${p}.sections`, 'a note carries at least one section of text');
       else each(n.sections, `${p}.sections`, (s, sp) => {

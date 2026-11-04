@@ -32,6 +32,41 @@ describe('parity with core', () => {
   });
 });
 
+describe('who signed a note', () => {
+  const textFor = async (signer?: string) => {
+    const record = JSON.parse(exampleVet);
+    record.notes[0].signoff = 'signed';
+    if (signer) record.notes[0].signer = signer;
+    const out = await readVetnotesFile(JSON.stringify(record));
+    if (out.kind !== 'record') throw new Error(`refused: ${JSON.stringify(out)}`);
+    return out.text;
+  };
+
+  it('never calls a clinic owner with no verified vet registration the vet', async () => {
+    const text = await textFor('clinic_owner_unverified');
+    expect(text).toContain('signed off by the clinic owner (no verified vet registration on file)');
+    expect(text).not.toContain('signed off by the vet');
+  });
+
+  it('says a vet signed only when the file says so', async () => {
+    expect(await textFor('vet')).toContain('signed off by the vet');
+  });
+
+  // Files issued before this field existed could have been signed by that same owner.
+  it('claims nothing about a signer the file does not name', async () => {
+    const text = await textFor();
+    expect(text).toContain("signed off (signer's role not recorded)");
+    expect(text).not.toContain('signed off by the vet');
+  });
+
+  it('refuses a signer the format does not define', async () => {
+    const record = JSON.parse(exampleVet);
+    record.notes[0].signoff = 'signed';
+    record.notes[0].signer = 'specialist';
+    expect(await readVetnotesFile(JSON.stringify(record))).toEqual({ kind: 'invalid', errors: ['notes[0].signer: must be one of vet, clinic_owner_unverified'] });
+  });
+});
+
 describe('readVetnotesFile', () => {
   it('names the altered note when one character of it changed', async () => {
     const record = JSON.parse(exampleVet) as VetRecord;
