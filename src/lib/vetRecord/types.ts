@@ -1,4 +1,4 @@
-/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/types.ts @ ee5677fa (PR #135).
+/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/types.ts @ b41dd0d1 (PR #150).
    Change it there first and re-copy; reader.test.ts checks this copy against core's example file. */
 /**
  * VetNotes Record — the portable clinical record file (`.vet`, format "vetnotes.record").
@@ -41,12 +41,20 @@ export type CaptureMethod = 'export' | 'page' | 'document' | 'typed';
 export type FactOrigin = 'record' | 'page' | 'entered';
 
 /**
- * signed    — a vet signed it in the source system;
+ * signed    — signed in the source system (`signer` says by whom, when the source records it);
  * finalised — saved and finalised (VetSorcery consult workspace);
  * unsigned  — neither;
  * unknown   — the source does not say (most page captures).
  */
 export type NoteSignoff = 'signed' | 'finalised' | 'unsigned' | 'unknown';
+
+/**
+ * Who signed a 'signed' note.
+ * vet                     — a veterinarian;
+ * clinic_owner_unverified — the clinic owner, with no verified vet registration on file.
+ * Left out when the source does not record it; a reader then claims nothing about the signer.
+ */
+export type NoteSigner = 'vet' | 'clinic_owner_unverified';
 
 export interface RecordSource {
   id: string;
@@ -114,6 +122,7 @@ export interface RecordNote {
   date: string | null;
   author: string | null;
   signoff: NoteSignoff;
+  signer?: NoteSigner;
   /** Free label from the source: 'consult', 'voice_note', 'history', 'surgery', … */
   kind: string | null;
   /** Problem the note was written against, as titled in the source. */

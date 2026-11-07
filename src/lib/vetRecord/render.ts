@@ -1,4 +1,4 @@
-/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/render.ts @ ee5677fa (PR #135).
+/* VENDORED from midnightnow/vetsorcery packages/functions/src/lib/vetRecord/render.ts @ b41dd0d1 (PR #150).
    Change it there first and re-copy; reader.test.ts checks this copy against core's example file. */
 /**
  * The readable rendering of a VetNotes Record: plain text a vet can read top to
@@ -10,7 +10,7 @@
  *  - what was left out, and what the integrity digest does and does not prove.
  * A missing value prints as "Not recorded", never as a guess.
  */
-import type { NoteSignoff, RecordKind, RecordSource, VetRecord } from './types';
+import type { NoteSignoff, RecordKind, RecordNote, RecordSource, VetRecord } from './types';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const NOT_RECORDED = 'Not recorded';
@@ -23,11 +23,18 @@ const KIND_TITLE: Record<RecordKind, string> = {
 };
 
 const SIGNOFF_LABEL: Record<NoteSignoff, string> = {
-  signed: 'signed off by the vet',
+  signed: "signed off (signer's role not recorded)",
   finalised: 'finalised',
   unsigned: 'NOT SIGNED OFF',
   unknown: 'sign-off not shown in the source',
 };
+
+/** Only a note that names its signer says who signed: older files, and other systems, do not. */
+function signoffLabel(n: RecordNote): string {
+  if (n.signoff === 'signed' && n.signer === 'vet') return 'signed off by the vet';
+  if (n.signoff === 'signed' && n.signer === 'clinic_owner_unverified') return 'signed off by the clinic owner (no verified vet registration on file)';
+  return SIGNOFF_LABEL[n.signoff] ?? n.signoff;
+}
 
 const SYSTEM_LABEL: Record<string, string> = {
   vetsorcery: 'VetSorcery', ezyvet: 'ezyVet', rxworks: 'RxWorks', vetnotes: 'VetNotes', other: 'Other system',
@@ -143,7 +150,7 @@ export function renderRecordText(record: VetRecord): string {
     heading('Original notes', '(word for word)');
     for (const n of record.notes) {
       line();
-      line(`── ${join([formatDay(n.date), sourceLabel(sources.get(n.source)), n.author ?? 'author not recorded', SIGNOFF_LABEL[n.signoff] ?? n.signoff])}`);
+      line(`── ${join([formatDay(n.date), sourceLabel(sources.get(n.source)), n.author ?? 'author not recorded', signoffLabel(n)])}`);
       if (n.problem) line(`Problem: ${n.problem}`);
       for (const section of n.sections) {
         if (section.heading) line(section.heading);
