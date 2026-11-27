@@ -199,3 +199,117 @@ describe('handleEntitlementEvent + firestoreStore', () => {
 		);
 	});
 });
+
+describe('checkout grant records when the paid period ends', () => {
+	const END = 1_802_000_000;
+	const expiry = (end: number) => new Date((end + GRACE_SECONDS) * 1000).toISOString();
+	const ENT = 'vetnotes_pro_entitlements/u1';
+
+	/** Stripe answering GET /v1/subscriptions/sub_1. */
+	function subscriptionApi(reply: { status?: number; body?: unknown }) {
+		const urls: string[] = [];
+		const fetchImpl = (async (url: string) => {
+			urls.push(url);
+			return new Response(JSON.stringify(reply.body ?? {}), { status: reply.status ?? 200 });
+		}) as unknown as typeof fetch;
+		return { urls, fetchImpl };
+	}
+
+	it('looks the subscription up and stores its period end plus grace', async () => {
+		const db = fakeDb();
+		const api = subscriptionApi({ body: sub({ current_period_end: END }) });
+		const out = await handleEntitlementEvent(
+			ev('checkout.session.completed', session(), 100, 'evt_buy'),
+			opts(db, { stripeSecret: 'sk_test', fetchImpl: api.fetchImpl })
+		);
+		expect(out).toBe('grant applied');
+		expect(api.urls).toEqual(['https://api.stripe.com/v1/subscriptions/sub_1']);
+		expect(db.docs.get(ENT)).toMatchObject({ active: true, expires_at: expiry(END) });
+	});
+
+	it('reads the period end from the newer API shape too', async () => {
+		const db = fakeDb();
+		const api = subscriptionApi({ body: sub({ current_period_end: undefined, items: { data: [{ current_period_end: END }] } }) });
+		await handleEntitlementEvent(
+			ev('checkout.session.completed', session(), 100, 'evt_buy'),
+			opts(db, { stripeSecret: 'sk_test', fetchImpl: api.fetchImpl })
+		);
+		expect(db.docs.get(ENT)).toMatchObject({ expires_at: expiry(END) });
+	});
+
+	it('no longer wipes the expiry an earlier subscription event had set', async () => {
+		const db = fakeDb();
+		const api = subscriptionApi({ body: sub({ current_period_end: END }) });
+		const o = opts(db, { stripeSecret: 'sk_test', fetchImpl: api.fetchImpl });
+		await handleEntitlementEvent(ev('customer.subscription.created', sub({ current_period_end: END }), 100, 'evt_sub'), o);
+		expect(db.docs.get(ENT)).toMatchObject({ expires_at: expiry(END) });
+		// The checkout event is created after the subscription, so it is applied second.
+		await handleEntitlementEvent(ev('checkout.session.completed', session(), 101, 'evt_buy'), o);
+		expect(db.docs.get(ENT)).toMatchObject({ active: true, expires_at: expiry(END) });
+	});
+
+	it('a missed cancellation can no longer leave access on for ever: the grant has an end', async () => {
+		const db = fakeDb();
+		const api = subscriptionApi({ body: sub({ current_period_end: END }) });
+		// Only the checkout event is ever delivered.
+		await handleEntitlementEvent(
+			ev('checkout.session.completed', session(), 100, 'evt_buy'),
+			opts(db, { stripeSecret: 'sk_test', fetchImpl: api.fetchImpl })
+		);
+		const stored = db.docs.get(ENT) as { expires_at: string | null };
+		expect(stored.expires_at).not.toBeNull();
+		expect(Date.parse(stored.expires_at!)).toBe((END + GRACE_SECONDS) * 1000);
+	});
+
+	it('a renewal (customer.subscription.updated) moves the end forward', async () => {
+		const db = fakeDb();
+		const api = subscriptionApi({ body: sub({ current_period_end: END }) });
+		const o = opts(db, { stripeSecret: 'sk_test', fetchImpl: api.fetchImpl });
+		await handleEntitlementEvent(ev('checkout.session.completed', session(), 100, 'evt_buy'), o);
+		const NEXT = END + 30 * 24 * 60 * 60;
+		await handleEntitlementEvent(ev('customer.subscription.updated', sub({ current_period_end: NEXT }), 200, 'evt_renew'), o);
+		expect(db.docs.get(ENT)).toMatchObject({ active: true, expires_at: expiry(NEXT) });
+	});
+
+	it('throws on a transient Stripe error so the event is retried, and records nothing', async () => {
+		const db = fakeDb();
+		const api = subscriptionApi({ status: 503 });
+		await expect(
+			handleEntitlementEvent(
+				ev('checkout.session.completed', session(), 100, 'evt_buy'),
+				opts(db, { stripeSecret: 'sk_test', fetchImpl: api.fetchImpl })
+			)
+		).rejects.toThrow(/Stripe GET subscriptions\/sub_1 failed: HTTP 503/);
+		// Nothing in the ledger, so Stripe's retry is processed as a fresh event.
+		expect(db.docs.size).toBe(0);
+	});
+
+	it('still grants when Stripe says the subscription does not exist (no end known)', async () => {
+		const db = fakeDb();
+		const api = subscriptionApi({ status: 404 });
+		const out = await handleEntitlementEvent(
+			ev('checkout.session.completed', session(), 100, 'evt_buy'),
+			opts(db, { stripeSecret: 'sk_test', fetchImpl: api.fetchImpl })
+		);
+		expect(out).toBe('grant applied');
+		expect(db.docs.get(ENT)).toMatchObject({ active: true, expires_at: null });
+	});
+
+	it('a one-off purchase (no subscription) is not looked up and has no end', async () => {
+		const db = fakeDb();
+		const api = subscriptionApi({ body: {} });
+		await handleEntitlementEvent(
+			ev('checkout.session.completed', session({ subscription: null }), 100, 'evt_buy'),
+			opts(db, { stripeSecret: 'sk_test', fetchImpl: api.fetchImpl })
+		);
+		expect(api.urls).toEqual([]);
+		expect(db.docs.get(ENT)).toMatchObject({ active: true, expires_at: null });
+	});
+
+	it('without STRIPE_SECRET_KEY it grants as before, with no end', async () => {
+		const db = fakeDb();
+		expect(await handleEntitlementEvent(ev('checkout.session.completed', session(), 100, 'evt_buy'), opts(db))).toBe('grant applied');
+		expect(db.docs.get(ENT)).toMatchObject({ active: true, expires_at: null });
+	});
+});
+

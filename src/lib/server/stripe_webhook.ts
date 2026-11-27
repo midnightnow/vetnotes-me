@@ -16,7 +16,10 @@
  *   a full refund, or a dispute revokes. `past_due` keeps access while Stripe
  *   retries the card.
  * - Expiry: subscription events set `expires_at` to the period end + grace, so a
- *   missed cancellation event stops access on its own.
+ *   missed cancellation event stops access on its own. Since 2026-11-27 the
+ *   checkout grant does too: it looks the new subscription up (see
+ *   `withSubscriptionExpiry`). Before that it wrote `expires_at: null`, which
+ *   also wiped the expiry an earlier subscription event had just set.
  *
  * The account is shared by five products, so a refund or dispute is only acted
  * on after resolving the charge's own metadata (invoice -> subscription metadata,
@@ -104,7 +107,8 @@ export function decideAction(event: StripeEvent, products: ReadonlySet<string>):
 			return {
 				kind: 'grant',
 				userId,
-				// Subscriptions get a real expiry from customer.subscription.* events.
+				/* The session carries no period end. For a subscription,
+				   `withSubscriptionExpiry` fills this in before it is stored. */
 				expiresAt: null,
 				meta: {
 					source: 'stripe_checkout',
@@ -235,6 +239,40 @@ export interface HandleOptions {
 	fetchImpl?: Fetch;
 }
 
+/**
+ * Give a checkout grant for a SUBSCRIPTION the end of its paid period.
+ *
+ * A `checkout.session.completed` payload carries only the subscription's id, so
+ * `decideAction` cannot know the period end and returns `expiresAt: null`. A
+ * grant stored that way never lapses by itself: if the later cancellation event
+ * were lost, access would stay on for ever. So the subscription is fetched and
+ * its period end (+ grace) recorded, exactly as subscription events do. Every
+ * later `customer.subscription.updated` (each renewal) moves it forward.
+ *
+ * - One-off purchases (no subscription id) are untouched: no lookup, no expiry.
+ * - A transient Stripe error throws, so the webhook answers 500 and Stripe
+ *   retries; nothing has been written to the ledger yet, so the retry is clean.
+ * - A 404, or no STRIPE_SECRET_KEY, grants with no expiry as before. The buyer
+ *   has paid; a missing end date must not cost them their access.
+ */
+async function withSubscriptionExpiry(
+	action: Extract<EntitlementAction, { kind: 'grant' }>,
+	opts: HandleOptions
+): Promise<Extract<EntitlementAction, { kind: 'grant' }>> {
+	const subscriptionId = action.meta.stripeSubscriptionId;
+	if (action.expiresAt !== null || action.meta.source !== 'stripe_checkout' || !subscriptionId) return action;
+	if (!opts.stripeSecret) return action;
+
+	const sub = await stripeGet(
+		`subscriptions/${encodeURIComponent(subscriptionId)}`,
+		opts.stripeSecret,
+		opts.fetchImpl ?? fetch
+	);
+	const end = sub ? periodEnd(sub) : null;
+	if (!end) return action;
+	return { ...action, expiresAt: new Date((end + GRACE_SECONDS) * 1000).toISOString() };
+}
+
 /** Decide and apply one verified event. Returns a short outcome for logs/tests. */
 export async function handleEntitlementEvent(event: StripeEvent, opts: HandleOptions): Promise<string> {
 	let action = decideAction(event, opts.products);
@@ -247,6 +285,7 @@ export async function handleEntitlementEvent(event: StripeEvent, opts: HandleOpt
 	}
 
 	if (action.kind === 'ignore') return `ignored: ${action.why}`;
+	if (action.kind === 'grant') action = await withSubscriptionExpiry(action, opts);
 	const fields = action.kind === 'grant' ? opts.grantFields(action) : opts.revokeFields(action.reason);
 	const outcome = await opts.store.apply(opts.collection, action.userId, event, fields);
 	return `${action.kind} ${outcome}`;
