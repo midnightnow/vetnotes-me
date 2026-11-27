@@ -26,6 +26,13 @@
  * If Stripe cannot be asked, the route answers 502 and starts nothing.
  * See `$lib/server/pro_billing.ts`.
  *
+ * AGREEMENT TO THE TERMS
+ * The buyer must tick "I agree to the Terms and Refund Policy" on the pricing
+ * page. That is enforced HERE, not only in the browser: without
+ * `accept_terms: true` and the current `terms_version` nothing is created. The
+ * version and the SERVER's time are written to the session and subscription
+ * metadata (the durable record) and copied to `vetnotes_pro_billing/{uid}`.
+ *
  * Required env:
  *   STRIPE_SECRET_KEY       — secret key for the shared account
  *   VETNOTES_PRO_PRICE_ID   — the A$49/mo recurring price
@@ -37,11 +44,14 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import { adminDb } from '$lib/server/firebase-admin';
+import { TERMS_VERSION } from '$lib/constants/legal';
 import {
 	PRO_PRODUCT,
 	ensureStripeCustomer,
+	expireCheckoutSession,
 	findLiveProSubscription,
-	findOpenProCheckout
+	findOpenProCheckout,
+	recordCheckoutStart
 } from '$lib/server/pro_billing';
 
 const STRIPE_API = 'https://api.stripe.com/v1/checkout/sessions';
@@ -58,9 +68,35 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		);
 	}
 
-	const body = await request.json().catch(() => ({}));
+	const parsed: unknown = await request.json().catch(() => null);
+	const body = (parsed && typeof parsed === 'object' ? parsed : {}) as Record<string, unknown>;
 	const returnPath =
 		typeof body.return_path === 'string' && body.return_path.startsWith('/') ? body.return_path : '/pricing';
+
+	// Agreement is checked before anything is created at Stripe or stored.
+	if (body.accept_terms !== true) {
+		return json(
+			{
+				success: false,
+				code: 'terms_not_accepted',
+				error: 'Please agree to the Terms and Refund Policy before subscribing.'
+			},
+			{ status: 400 }
+		);
+	}
+	if (body.terms_version !== TERMS_VERSION) {
+		return json(
+			{
+				success: false,
+				code: 'terms_version_stale',
+				terms_version: TERMS_VERSION,
+				error: 'The Terms have changed since this page was loaded. Reload the page and agree again.'
+			},
+			{ status: 409 }
+		);
+	}
+	// The server's clock, never a time sent by the browser.
+	const termsAcceptedAt = new Date().toISOString();
 
 	const uid = locals.user.uid;
 	let customerId: string;
@@ -81,7 +117,13 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		}
 
 		const open = await findOpenProCheckout({ secret }, customerId);
-		if (open) return json({ success: true, url: open.url, sessionId: open.id, resumed: true });
+		if (open && open.metadata.terms_version === TERMS_VERSION) {
+			await recordCheckoutStart(adminDb, uid, { sessionId: open.id, termsVersion: TERMS_VERSION, termsAcceptedAt });
+			return json({ success: true, url: open.url, sessionId: open.id, resumed: true });
+		}
+		/* An open checkout made under other Terms must not stay payable next to
+		   the new one. If it cannot be expired, nothing new is opened. */
+		if (open) await expireCheckoutSession({ secret }, open.id);
 	} catch (err) {
 		/* Fail closed. Starting a checkout without knowing whether this vet is
 		   already subscribed is how a second monthly charge happens. */
@@ -106,6 +148,10 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 	form.set('subscription_data[metadata][app_key]', 'vetnotes');
 	/* No `customer_email`: Stripe rejects it alongside `customer`, and the
 	   customer already carries the vet's email. */
+	for (const prefix of ['metadata', 'subscription_data[metadata]']) {
+		form.set(`${prefix}[terms_version]`, TERMS_VERSION);
+		form.set(`${prefix}[terms_accepted_at]`, termsAcceptedAt);
+	}
 	form.set('success_url', `${url.origin}${returnPath}?pro_paid=1`);
 	form.set('cancel_url', `${url.origin}${returnPath}?pro_cancelled=1`);
 
@@ -125,5 +171,6 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 	}
 
 	const session = (await res.json()) as { id: string; url: string };
+	await recordCheckoutStart(adminDb, uid, { sessionId: session.id, termsVersion: TERMS_VERSION, termsAcceptedAt });
 	return json({ success: true, url: session.url, sessionId: session.id });
 };

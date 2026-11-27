@@ -92,6 +92,19 @@ Events:
 The Stripe account is shared with other products. Every checkout this app creates stamps
 `metadata.app_key=vetnotes`, so VetSorcery's webhook skips it. Do not remove that.
 
+### Terms, Refund Policy and Privacy pages are DRAFTS
+
+`/terms`, `/refunds` and `/privacy` were drafted on 2026-11-27 from facts in this repository. No
+lawyer has read them. **Do not deploy them until the owner and a lawyer have reviewed the text.**
+Each page's source starts with a note listing the facts used and the points still undecided
+(`TODO(owner)` / `TODO(lawyer)`).
+
+Checkout refuses to start unless the buyer ticks "I agree to the Terms and Refund Policy". The
+route records `terms_version` and `terms_accepted_at` (server time) in the Stripe session and
+subscription metadata and in `vetnotes_pro_billing/{uid}`. When the reviewed wording goes in,
+change `TERMS_VERSION` in `src/lib/constants/legal.ts` so the record shows which text each vet
+agreed to. VetNotes Basic is sold through a Stripe Payment Link and has no agreement step.
+
 ### One Stripe customer per vet
 
 `POST /api/pro/checkout` keeps one Stripe customer per signed-in user in the Firestore collection

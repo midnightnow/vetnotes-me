@@ -32,7 +32,7 @@
   onclick={open}
   disabled={busy}
   data-testid="manage-subscription"
-  class="block w-full text-center px-4 py-2.5 rounded-xl font-semibold transition-colors bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed {extraClass}"
+  class="block w-full text-center px-4 py-2.5 rounded-xl font-semibold transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed {extraClass}"
 >
   {busy ? 'Opening…' : 'Manage subscription'}
 </button>

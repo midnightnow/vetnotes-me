@@ -245,3 +245,34 @@ export async function findOpenProCheckout(
 	);
 	return open ? { id: open.id, url: open.url, metadata: open.metadata || {} } : null;
 }
+
+/** Expire an open Checkout Session so it can no longer be paid. */
+export async function expireCheckoutSession(deps: StripeDeps, sessionId: string): Promise<void> {
+	await stripeCall(deps, 'POST', `checkout/sessions/${encodeURIComponent(sessionId)}/expire`);
+}
+
+/**
+ * Keep a copy, against the vet, of the checkout they started and the Terms they
+ * agreed to. Best effort: the same facts are written to the Stripe session and
+ * subscription metadata in the call that creates the checkout, which is the
+ * record that cannot be lost. A Firestore failure here must not block a sale.
+ */
+export async function recordCheckoutStart(
+	db: FirebaseFirestore.Firestore,
+	userId: string,
+	record: { sessionId: string; termsVersion: string; termsAcceptedAt: string }
+): Promise<void> {
+	try {
+		await db.collection(PRO_BILLING_COLLECTION).doc(userId).set(
+			{
+				last_checkout_session_id: record.sessionId,
+				last_checkout_started_at: record.termsAcceptedAt,
+				terms_version: record.termsVersion,
+				terms_accepted_at: record.termsAcceptedAt
+			},
+			{ merge: true }
+		);
+	} catch (err) {
+		console.error('[Pro] could not record the checkout start for', userId, err);
+	}
+}

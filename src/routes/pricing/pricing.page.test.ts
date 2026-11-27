@@ -17,6 +17,7 @@ vi.mock('$lib/billing/proClient', () => ({
 
 import Page from './+page.svelte';
 import { RECHECK_INTERVAL_MS, RECHECK_MAX_ATTEMPTS } from '$lib/billing/proPageState';
+import { TERMS_VERSION } from '$lib/constants/legal';
 
 const FREE: Status = { pro: false, authenticated: true, manageable: false };
 const PRO: Status = { pro: true, authenticated: true, manageable: true };
@@ -134,10 +135,51 @@ describe('pricing page — Pro', () => {
 			new Response(JSON.stringify({ success: false, code: 'already_subscribed', manage: true }), { status: 409 })
 		);
 		await render('');
+		(target.querySelector('[data-testid="pro-agree"]') as HTMLInputElement).click();
+		flushSync();
 		(target.querySelector('[data-testid="pro-subscribe"]') as HTMLButtonElement).click();
 		await settle();
 		expect(text()).toContain('already has a VetNotes Pro subscription');
 		expect(has('manage-subscription')).toBe(true);
 		expect((target.querySelector('[data-testid="pro-subscribe"]') as HTMLButtonElement).disabled).toBe(true);
+	});
+
+	it('the agreement box starts unticked and links to the Terms and Refund Policy', async () => {
+		await render('');
+		const box = target.querySelector('[data-testid="pro-agree"]') as HTMLInputElement;
+		expect(box.checked).toBe(false);
+		expect(box.required).toBe(true);
+		const label = box.closest('label')!;
+		expect(label.querySelector('a[href="/terms"]')).not.toBeNull();
+		expect(label.querySelector('a[href="/refunds"]')).not.toBeNull();
+	});
+
+	it('Subscribe does not start a checkout until the box is ticked', async () => {
+		await render('');
+		(target.querySelector('[data-testid="pro-subscribe"]') as HTMLButtonElement).click();
+		await settle();
+		expect(billingFetch).not.toHaveBeenCalled();
+		expect(text()).toContain('Please tick the box to agree to the Terms and Refund Policy first.');
+	});
+
+	it('once ticked, Subscribe sends the agreement and the Terms version to the server', async () => {
+		billingFetch.mockResolvedValueOnce(new Response(JSON.stringify({ success: false }), { status: 502 }));
+		await render('');
+		(target.querySelector('[data-testid="pro-agree"]') as HTMLInputElement).click();
+		flushSync();
+		(target.querySelector('[data-testid="pro-subscribe"]') as HTMLButtonElement).click();
+		await settle();
+
+		expect(billingFetch).toHaveBeenCalledTimes(1);
+		const [path, init] = billingFetch.mock.calls[0];
+		expect(path).toBe('/api/pro/checkout');
+		expect(JSON.parse(init.body)).toEqual({ return_path: '/pricing', accept_terms: true, terms_version: TERMS_VERSION });
+	});
+
+	it('links to the Terms, Refund Policy and Privacy pages', async () => {
+		await render('');
+		for (const href of ['/terms', '/refunds', '/privacy']) {
+			expect(target.querySelector(`p a[href="${href}"]`), href).not.toBeNull();
+		}
 	});
 });

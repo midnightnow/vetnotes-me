@@ -17,6 +17,7 @@ vi.mock('$lib/server/firebase-admin', () => ({
 }));
 
 import { POST } from './+server';
+import { TERMS_VERSION } from '$lib/constants/legal';
 
 const ORIGIN = 'https://vetnotes.test';
 const VET = { uid: 'u1', email: 'vet@example.test' };
@@ -26,7 +27,12 @@ function call(opts: { user?: { uid: string; email?: string }; body?: Record<stri
 		request: new Request(`${ORIGIN}/api/pro/checkout`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ return_path: '/pricing', ...(opts.body ?? {}) })
+			body: JSON.stringify({
+				return_path: '/pricing',
+				accept_terms: true,
+				terms_version: TERMS_VERSION,
+				...(opts.body ?? {})
+			})
 		}),
 		locals: { user: opts.user },
 		url: new URL(`${ORIGIN}/api/pro/checkout`)
@@ -46,6 +52,13 @@ function emptyStripe(over: Parameters<typeof fakeStripe>[0] = {}) {
 
 const posts = (stripe: ReturnType<typeof fakeStripe>, path: string) =>
 	stripe.calls.filter((c) => c.method === 'POST' && c.path === path);
+
+const openSession = {
+	id: 'cs_open',
+	mode: 'subscription',
+	url: 'https://checkout.stripe.com/c/pay/cs_open',
+	metadata: { product: 'vetnotes_pro', terms_version: '' } as Record<string, string>
+};
 
 const proSub = (over: Record<string, unknown> = {}) => ({
 	id: 'sub_1',
@@ -203,13 +216,14 @@ describe('POST /api/pro/checkout — one customer, one subscription', () => {
 	});
 
 	it('a checkout already open for this vet is resumed, not duplicated', async () => {
+		openSession.metadata.terms_version = TERMS_VERSION;
 		h.db = fakeFirestore({ 'vetnotes_pro_billing/u1': { stripe_customer_id: 'cus_stored' } });
 		const stripe = emptyStripe({
 			'GET checkout/sessions': {
 				body: {
 					data: [
 						{ id: 'cs_other', mode: 'payment', url: 'https://checkout.stripe.com/other', metadata: { product: 'cpd_pass' } },
-						{ id: 'cs_open', mode: 'subscription', url: 'https://checkout.stripe.com/c/pay/cs_open', metadata: { product: 'vetnotes_pro' } }
+						openSession
 					]
 				}
 			}
@@ -244,5 +258,143 @@ describe('POST /api/pro/checkout — one customer, one subscription', () => {
 		const res = await call({ user: VET });
 		expect(res.status).toBe(503);
 		expect(await res.json()).toMatchObject({ configured: false });
+	});
+});
+
+describe('POST /api/pro/checkout — agreement to the Terms and Refund Policy', () => {
+	let errSpy: ReturnType<typeof vi.spyOn>;
+	beforeEach(() => {
+		for (const k of Object.keys(h.env)) delete h.env[k];
+		h.env.STRIPE_SECRET_KEY = 'sk_test_x';
+		h.env.VETNOTES_PRO_PRICE_ID = 'price_pro';
+		h.db = fakeFirestore();
+		errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-11-27T04:05:06.000Z'));
+	});
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+		errSpy.mockRestore();
+	});
+
+	for (const [label, body] of [
+		['no flag', { accept_terms: undefined }],
+		['false', { accept_terms: false }],
+		['the string "true"', { accept_terms: 'true' }],
+		['1', { accept_terms: 1 }]
+	] as const) {
+		it(`refuses to start a checkout without agreement (${label}), before anything is created`, async () => {
+			const stripe = emptyStripe();
+			vi.stubGlobal('fetch', stripe.fetchImpl);
+
+			const res = await call({ user: VET, body: body as Record<string, unknown> });
+			expect(res.status).toBe(400);
+			expect(await res.json()).toMatchObject({ success: false, code: 'terms_not_accepted' });
+			expect(stripe.calls).toHaveLength(0);
+			expect(h.db.docs.size).toBe(0);
+		});
+	}
+
+	it('refuses agreement to a version of the Terms that is not the current one', async () => {
+		const stripe = emptyStripe();
+		vi.stubGlobal('fetch', stripe.fetchImpl);
+
+		for (const terms_version of ['some-older-version', undefined, 7]) {
+			const res = await call({ user: VET, body: { terms_version } });
+			expect(res.status).toBe(409);
+			expect(await res.json()).toMatchObject({ success: false, code: 'terms_version_stale', terms_version: TERMS_VERSION });
+		}
+		expect(stripe.calls).toHaveLength(0);
+	});
+
+	it('records the version and the server time of agreement on the session, the subscription and the vet', async () => {
+		const stripe = emptyStripe();
+		vi.stubGlobal('fetch', stripe.fetchImpl);
+
+		// A time sent by the browser is not trusted.
+		await call({ user: VET, body: { terms_accepted_at: '1999-01-01T00:00:00.000Z' } });
+
+		const f = posts(stripe, 'checkout/sessions')[0].form;
+		expect(f.get('metadata[terms_version]')).toBe(TERMS_VERSION);
+		expect(f.get('metadata[terms_accepted_at]')).toBe('2026-11-27T04:05:06.000Z');
+		expect(f.get('subscription_data[metadata][terms_version]')).toBe(TERMS_VERSION);
+		expect(f.get('subscription_data[metadata][terms_accepted_at]')).toBe('2026-11-27T04:05:06.000Z');
+
+		expect(h.db.docs.get('vetnotes_pro_billing/u1')).toMatchObject({
+			stripe_customer_id: 'cus_new',
+			terms_version: TERMS_VERSION,
+			terms_accepted_at: '2026-11-27T04:05:06.000Z',
+			last_checkout_session_id: 'cs_new'
+		});
+	});
+
+	it('still starts the checkout if the Firestore copy of the agreement cannot be written (Stripe holds it)', async () => {
+		h.db = fakeFirestore({ 'vetnotes_pro_billing/u1': { stripe_customer_id: 'cus_stored' } });
+		const realCollection = h.db.collection;
+		h.db.collection = (c: string) => {
+			const col = realCollection(c);
+			return {
+				doc: (id: string) => ({
+					...col.doc(id),
+					set: async () => {
+						throw new Error('firestore unavailable');
+					}
+				})
+			};
+		};
+		const stripe = emptyStripe();
+		vi.stubGlobal('fetch', stripe.fetchImpl);
+
+		const res = await call({ user: VET });
+		expect(res.status).toBe(200);
+		expect(posts(stripe, 'checkout/sessions')[0].form.get('metadata[terms_version]')).toBe(TERMS_VERSION);
+	});
+
+	it('an open checkout made under an older version of the Terms is expired and replaced', async () => {
+		h.db = fakeFirestore({ 'vetnotes_pro_billing/u1': { stripe_customer_id: 'cus_stored' } });
+		const stripe = emptyStripe({
+			'GET checkout/sessions': {
+				body: { data: [{ ...openSession, id: 'cs_old', metadata: { product: 'vetnotes_pro', terms_version: 'some-older-version' } }] }
+			},
+			'POST checkout/sessions/cs_old/expire': { body: { id: 'cs_old', status: 'expired' } }
+		});
+		vi.stubGlobal('fetch', stripe.fetchImpl);
+
+		const res = await call({ user: VET });
+		expect(await res.json()).toMatchObject({ success: true, sessionId: 'cs_new' });
+		expect(posts(stripe, 'checkout/sessions/cs_old/expire')).toHaveLength(1);
+		expect(posts(stripe, 'checkout/sessions')).toHaveLength(1);
+	});
+
+	it('if the older open checkout cannot be expired, no second one is opened', async () => {
+		h.db = fakeFirestore({ 'vetnotes_pro_billing/u1': { stripe_customer_id: 'cus_stored' } });
+		const stripe = emptyStripe({
+			'GET checkout/sessions': {
+				body: { data: [{ ...openSession, id: 'cs_old', metadata: { product: 'vetnotes_pro', terms_version: 'some-older-version' } }] }
+			},
+			'POST checkout/sessions/cs_old/expire': { status: 500, body: {} }
+		});
+		vi.stubGlobal('fetch', stripe.fetchImpl);
+
+		await expect(call({ user: VET })).rejects.toMatchObject({ status: 502 });
+		expect(posts(stripe, 'checkout/sessions')).toHaveLength(0);
+	});
+
+	it('resuming an open checkout records the new agreement for the vet', async () => {
+		h.db = fakeFirestore({ 'vetnotes_pro_billing/u1': { stripe_customer_id: 'cus_stored' } });
+		const stripe = emptyStripe({
+			'GET checkout/sessions': {
+				body: { data: [{ ...openSession, metadata: { product: 'vetnotes_pro', terms_version: TERMS_VERSION } }] }
+			}
+		});
+		vi.stubGlobal('fetch', stripe.fetchImpl);
+
+		await call({ user: VET });
+		expect(h.db.docs.get('vetnotes_pro_billing/u1')).toMatchObject({
+			terms_version: TERMS_VERSION,
+			terms_accepted_at: '2026-11-27T04:05:06.000Z',
+			last_checkout_session_id: 'cs_open'
+		});
 	});
 });

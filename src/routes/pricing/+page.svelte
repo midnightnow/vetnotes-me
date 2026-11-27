@@ -25,8 +25,15 @@
     RECHECK_MAX_ATTEMPTS
   } from '$lib/billing/proPageState';
 
+  import { TERMS_VERSION } from '$lib/constants/legal';
+
   let proBusy = $state(false);
   let proError = $state('');
+
+  // "I agree to the Terms and Refund Policy". Unticked until the buyer ticks
+  // it; the checkout route refuses without it, so this is not the only check.
+  let agreedToTerms = $state(false);
+  let agreeBox: HTMLInputElement | undefined = $state();
 
   // `undefined` until the server answers; `null` if it could not be reached.
   let proStatus = $state<ProStatus | null | undefined>(undefined);
@@ -75,13 +82,22 @@
   let alreadySubscribed = $state(false);
 
   async function startProCheckout() {
+    if (!agreedToTerms) {
+      proError = 'Please tick the box to agree to the Terms and Refund Policy first.';
+      agreeBox?.focus();
+      return;
+    }
     proBusy = true;
     proError = '';
     try {
       const res = await billingFetch('/api/pro/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ return_path: '/pricing' })
+        body: JSON.stringify({
+          return_path: '/pricing',
+          accept_terms: agreedToTerms,
+          terms_version: TERMS_VERSION
+        })
       });
 
       if (res.status === 401) {
@@ -98,6 +114,14 @@
         alreadySubscribed = true;
         proError = 'This account already has a VetNotes Pro subscription. You have not been charged again.';
         refreshProStatus();
+        return;
+      }
+      if (data?.code === 'terms_not_accepted') {
+        proError = 'Please tick the box to agree to the Terms and Refund Policy first.';
+        return;
+      }
+      if (data?.code === 'terms_version_stale') {
+        proError = 'The Terms have changed since this page was loaded. Reload the page and agree again.';
         return;
       }
       proError =
@@ -325,6 +349,22 @@
                   {proView.notice === 'confirming' ? 'Confirming your payment…' : 'Checking your account…'}
                 </button>
               {:else}
+                <label class="flex items-start gap-2 text-sm text-slate-700 text-left">
+                  <input
+                    type="checkbox"
+                    bind:checked={agreedToTerms}
+                    bind:this={agreeBox}
+                    required
+                    data-testid="pro-agree"
+                    class="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-400"
+                  />
+                  <span>
+                    I agree to the
+                    <a href="/terms" target="_blank" rel="noopener" class="text-blue-600 underline">Terms</a>
+                    and
+                    <a href="/refunds" target="_blank" rel="noopener" class="text-blue-600 underline">Refund Policy</a>.
+                  </span>
+                </label>
                 <button
                   type="button"
                   onclick={startProCheckout}
@@ -371,6 +411,13 @@
     <p class="text-center text-sm text-slate-400 mt-10">
       Questions? <a href="/tickets" class="text-blue-600 hover:underline">Open a support ticket</a>
       — a real person reads every one.
+    </p>
+    <p class="text-center text-sm text-slate-500 mt-3">
+      <a href="/terms" class="text-blue-600 hover:underline">Terms</a>
+      ·
+      <a href="/refunds" class="text-blue-600 hover:underline">Refund Policy</a>
+      ·
+      <a href="/privacy" class="text-blue-600 hover:underline">Privacy</a>
     </p>
   </div>
 </div>

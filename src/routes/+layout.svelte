@@ -2,6 +2,7 @@
     import "../app.css";
     import GlobalNav from "$lib/components/GlobalNav.svelte";
     import SupportChat from "$lib/components/SupportChat.svelte";
+    import SiteFooter from "$lib/components/SiteFooter.svelte";
     import { page } from "$app/stores";
     import { afterNavigate } from "$app/navigation";
     import { initGoogleAnalytics, trackGaPageView } from "$lib/analytics/googleAnalytics";
@@ -45,5 +46,6 @@
     <main>
         <slot />
     </main>
+    <SiteFooter />
     <SupportChat />
 </div>
