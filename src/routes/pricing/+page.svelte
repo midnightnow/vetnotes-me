@@ -17,7 +17,7 @@
   // which anyone can type. See `$lib/billing/proPageState.ts`.
   import { onMount } from 'svelte';
   import ManageSubscriptionButton from '$lib/components/ManageSubscriptionButton.svelte';
-  import { fetchProStatus, type ProStatus } from '$lib/billing/proClient';
+  import { billingFetch, fetchProStatus, type ProStatus } from '$lib/billing/proClient';
   import {
     accountFromStatus,
     proPageView,
@@ -70,11 +70,15 @@
     return () => clearTimeout(recheckTimer);
   });
 
+  // The server says this vet already has a Pro subscription (it asked Stripe),
+  // even if the entitlement has not reached this page yet.
+  let alreadySubscribed = $state(false);
+
   async function startProCheckout() {
     proBusy = true;
     proError = '';
     try {
-      const res = await fetch('/api/pro/checkout', {
+      const res = await billingFetch('/api/pro/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ return_path: '/pricing' })
@@ -86,8 +90,14 @@
       }
 
       const data = await res.json().catch(() => ({}));
-      if (data?.url) {
+      if (res.ok && data?.url) {
         window.location.href = data.url;
+        return;
+      }
+      if (res.status === 409 && data?.code === 'already_subscribed') {
+        alreadySubscribed = true;
+        proError = 'This account already has a VetNotes Pro subscription. You have not been charged again.';
+        refreshProStatus();
         return;
       }
       proError =
@@ -318,7 +328,7 @@
                 <button
                   type="button"
                   onclick={startProCheckout}
-                  disabled={proBusy}
+                  disabled={proBusy || alreadySubscribed}
                   data-testid="pro-subscribe"
                   class="block w-full text-center px-4 py-2.5 rounded-xl font-semibold transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
@@ -326,6 +336,9 @@
                 </button>
                 {#if proError}
                   <p class="text-sm text-red-600 text-center" role="alert">{proError}</p>
+                {/if}
+                {#if alreadySubscribed}
+                  <ManageSubscriptionButton />
                 {/if}
               {/if}
             {:else}

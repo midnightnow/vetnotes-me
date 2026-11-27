@@ -8,9 +8,10 @@ import { mount, unmount, flushSync } from 'svelte';
 type Status = { pro: boolean; authenticated: boolean; manageable: boolean } | null;
 const h = vi.hoisted(() => ({ status: null as Status }));
 
+const billingFetch = vi.hoisted(() => vi.fn());
 vi.mock('$lib/billing/proClient', () => ({
 	fetchProStatus: vi.fn(async () => h.status),
-	billingFetch: vi.fn(),
+	billingFetch,
 	requestBillingPortal: vi.fn()
 }));
 
@@ -44,6 +45,7 @@ describe('pricing page — Pro', () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		h.status = FREE;
+		billingFetch.mockReset();
 	});
 	afterEach(() => {
 		if (app) unmount(app);
@@ -125,5 +127,17 @@ describe('pricing page — Pro', () => {
 		h.status = null;
 		await render('');
 		expect(has('pro-subscribe')).toBe(true);
+	});
+
+	it('when the server refuses a second subscription, says so and offers Manage subscription', async () => {
+		billingFetch.mockResolvedValueOnce(
+			new Response(JSON.stringify({ success: false, code: 'already_subscribed', manage: true }), { status: 409 })
+		);
+		await render('');
+		(target.querySelector('[data-testid="pro-subscribe"]') as HTMLButtonElement).click();
+		await settle();
+		expect(text()).toContain('already has a VetNotes Pro subscription');
+		expect(has('manage-subscription')).toBe(true);
+		expect((target.querySelector('[data-testid="pro-subscribe"]') as HTMLButtonElement).disabled).toBe(true);
 	});
 });

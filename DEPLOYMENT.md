@@ -92,6 +92,15 @@ Events:
 The Stripe account is shared with other products. Every checkout this app creates stamps
 `metadata.app_key=vetnotes`, so VetSorcery's webhook skips it. Do not remove that.
 
+### One Stripe customer per vet
+
+`POST /api/pro/checkout` keeps one Stripe customer per signed-in user in the Firestore collection
+`vetnotes_pro_billing/{uid}` (Admin SDK only; no client rule should ever grant access to it, or to
+`vetnotes_pro_entitlements`). Before starting a checkout it asks Stripe whether that customer
+already has a live Pro subscription and refuses with 409 if so. A customer is created the first
+time a vet presses Subscribe, so abandoned checkouts leave customers with no subscription in the
+Stripe dashboard. That is expected.
+
 ### Stripe Customer Portal (Manage subscription)
 
 `POST /api/pro/portal` opens the Stripe Billing Portal for the signed-in vet's own customer. It
