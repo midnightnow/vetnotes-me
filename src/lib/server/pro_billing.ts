@@ -67,8 +67,7 @@ export async function stripeCall(
 	deps: StripeDeps,
 	method: 'GET' | 'POST',
 	path: string,
-	params?: URLSearchParams,
-	extraHeaders: Record<string, string> = {}
+	params?: URLSearchParams
 ): Promise<Record<string, any>> {
 	const fetchImpl = deps.fetchImpl ?? fetch;
 	const query = method === 'GET' && params ? `?${params.toString()}` : '';
@@ -76,8 +75,7 @@ export async function stripeCall(
 		method,
 		headers: {
 			Authorization: `Bearer ${deps.secret}`,
-			...(method === 'POST' ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
-			...extraHeaders
+			...(method === 'POST' ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {})
 		},
 		...(method === 'POST' ? { body: (params ?? new URLSearchParams()).toString() } : {})
 	});
@@ -158,11 +156,12 @@ export async function ensureStripeCustomer(
 		if (user.email) form.set('email', user.email);
 		form.set('metadata[user_id]', user.uid);
 		form.set('metadata[app_key]', 'vetnotes');
-		/* The idempotency key makes a double-click or a retry within 24 hours
-		   return the same customer instead of creating a second one. */
-		const customer = await stripeCall(deps, 'POST', 'customers', form, {
-			'Idempotency-Key': `vetnotes-pro-customer-${user.uid}`
-		});
+		/* No Stripe idempotency key on purpose: Stripe replays the first reply
+		   for a key for 24 hours, errors included, so one bad reply would lock
+		   this vet out of checkout for a day. Two requests racing here can
+		   create two customers, but the transaction below makes both use the
+		   one stored first; the other is left with no subscription. */
+		const customer = await stripeCall(deps, 'POST', 'customers', form);
 		candidate = asStripeCustomerId(customer.id);
 		if (!candidate) throw new StripeApiError('POST', 'customers', 200, 'no customer id in reply');
 	}

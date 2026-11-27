@@ -102,7 +102,8 @@ describe('POST /api/pro/checkout — one customer, one subscription', () => {
 		expect(created[0].form.get('email')).toBe('vet@example.test');
 		expect(created[0].form.get('metadata[user_id]')).toBe('u1');
 		expect(created[0].form.get('metadata[app_key]')).toBe('vetnotes');
-		expect(created[0].headers['idempotency-key']).toBe('vetnotes-pro-customer-u1');
+		// No idempotency key: Stripe would replay a failed reply for 24 hours.
+		expect(created[0].headers['idempotency-key']).toBeUndefined();
 
 		expect(h.db.docs.get('vetnotes_pro_billing/u1')).toMatchObject({ stripe_customer_id: 'cus_new' });
 
@@ -236,6 +237,14 @@ describe('POST /api/pro/checkout — one customer, one subscription', () => {
 		const listed = stripe.calls.find((c) => c.method === 'GET' && c.path === 'checkout/sessions');
 		expect(listed?.query.get('customer')).toBe('cus_stored');
 		expect(listed?.query.get('status')).toBe('open');
+	});
+
+	it('a failed customer creation starts nothing and stores nothing, so the vet can simply try again', async () => {
+		const stripe = emptyStripe({ 'POST customers': { status: 500, body: {} } });
+		vi.stubGlobal('fetch', stripe.fetchImpl);
+		await expect(call({ user: VET })).rejects.toMatchObject({ status: 502 });
+		expect(posts(stripe, 'checkout/sessions')).toHaveLength(0);
+		expect(h.db.docs.size).toBe(0);
 	});
 
 	it('two first checkouts at once end up on the same stored customer', async () => {
