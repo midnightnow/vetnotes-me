@@ -11,8 +11,20 @@
   // 503s with { configured: false } if the env is missing — in that case we show
   // the pre-sale state rather than a dead button, so this page can never
   // advertise a price that cannot actually be paid.
+  import { onMount } from 'svelte';
+  import ManageSubscriptionButton from '$lib/components/ManageSubscriptionButton.svelte';
+  import { fetchProStatus, type ProStatus } from '$lib/billing/proClient';
+
   let proBusy = $state(false);
   let proError = $state('');
+
+  // What the SERVER says about this sign-in. Null until it answers, or if it
+  // could not be reached.
+  let proStatus = $state<ProStatus | null>(null);
+
+  onMount(async () => {
+    proStatus = await fetchProStatus();
+  });
 
   async function startProCheckout() {
     proBusy = true;
@@ -184,6 +196,9 @@
               </button>
               {#if proError}
                 <p class="text-sm text-red-600 text-center">{proError}</p>
+              {/if}
+              {#if proStatus?.manageable}
+                <ManageSubscriptionButton />
               {/if}
             {:else}
             <a
