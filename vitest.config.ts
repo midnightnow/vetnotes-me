@@ -10,6 +10,10 @@ const execArgv = nodeMajor >= 22 ? ['--no-experimental-webstorage'] : [];
 
 export default defineConfig({
     plugins: [sveltekit()],
+    /* Component tests mount Svelte pages in jsdom. Without the `browser`
+       condition `svelte` resolves to its server build, where `mount()` throws
+       `lifecycle_function_unavailable`. */
+    resolve: { conditions: ['browser'] },
     test: {
         include: ['src/**/*.{test,spec}.{js,ts}'],
         environment: 'jsdom',

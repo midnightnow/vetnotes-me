@@ -77,6 +77,26 @@ async function hasPaidVetSorceryPlan(userId: string): Promise<boolean> {
 	return false;
 }
 
+/**
+ * Is this entitlement document a live VetNotes Pro grant right now?
+ *
+ * Pure, so the entitlement check and the billing state (`pro_billing.ts`) read
+ * the document the same way.
+ */
+export function isLiveProGrant(data: Record<string, any> | undefined, now = Date.now()): boolean {
+	if (!data || data.active !== true) return false;
+
+	/* A subscription entitlement is kept alive by renewal and cleared on
+	   `customer.subscription.deleted`. `expires_at` is a belt-and-braces stop
+	   for the case where that event is never delivered. */
+	const expiresAt = data.expires_at;
+	if (expiresAt) {
+		const ms = typeof expiresAt === 'string' ? Date.parse(expiresAt) : expiresAt?.toMillis?.();
+		if (Number.isFinite(ms) && ms < now) return false;
+	}
+	return true;
+}
+
 /** Is this user entitled to VetNotes Pro right now? */
 export async function hasProEntitlement(userId: string): Promise<boolean> {
 	if (!userId) return false;
@@ -86,18 +106,7 @@ export async function hasProEntitlement(userId: string): Promise<boolean> {
 	try {
 		const snap = await adminDb.collection(COLLECTION).doc(userId).get();
 		if (!snap.exists) return false;
-		const data = snap.data() || {};
-		if (data.active !== true) return false;
-
-		/* A subscription entitlement is kept alive by renewal and cleared on
-		   `customer.subscription.deleted`. `expires_at` is a belt-and-braces stop
-		   for the case where that event is never delivered. */
-		const expiresAt = data.expires_at;
-		if (expiresAt) {
-			const ms = typeof expiresAt === 'string' ? Date.parse(expiresAt) : expiresAt?.toMillis?.();
-			if (Number.isFinite(ms) && ms < Date.now()) return false;
-		}
-		return true;
+		return isLiveProGrant(snap.data());
 	} catch (err) {
 		console.error('[Pro] entitlement read failed', err);
 		return false;

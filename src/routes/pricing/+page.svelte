@@ -11,17 +11,93 @@
   // 503s with { configured: false } if the env is missing — in that case we show
   // the pre-sale state rather than a dead button, so this page can never
   // advertise a price that cannot actually be paid.
+  //
+  // What this page shows for Pro is decided by `proPageView` from what the
+  // SERVER reports about the signed-in vet — never from `?pro_paid=1` alone,
+  // which anyone can type. See `$lib/billing/proPageState.ts`.
+  import { onMount } from 'svelte';
+  import ManageSubscriptionButton from '$lib/components/ManageSubscriptionButton.svelte';
+  import { billingFetch, fetchProStatus, type ProStatus } from '$lib/billing/proClient';
+  import {
+    accountFromStatus,
+    proPageView,
+    RECHECK_INTERVAL_MS,
+    RECHECK_MAX_ATTEMPTS
+  } from '$lib/billing/proPageState';
+
+  import { TERMS_VERSION } from '$lib/constants/legal';
+
   let proBusy = $state(false);
   let proError = $state('');
 
+  // "I agree to the Terms and Refund Policy". Unticked until the buyer ticks
+  // it; the checkout route refuses without it, so this is not the only check.
+  let agreedToTerms = $state(false);
+  let agreeBox: HTMLInputElement | undefined = $state();
+
+  // `undefined` until the server answers; `null` if it could not be reached.
+  let proStatus = $state<ProStatus | null | undefined>(undefined);
+  let paidFlag = $state(false);
+  let cancelledFlag = $state(false);
+  let recheckAttempts = $state(0);
+  let recheckTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const proView = $derived(
+    proPageView({
+      paidFlag,
+      cancelledFlag,
+      account: accountFromStatus(proStatus),
+      manageable: proStatus?.manageable === true,
+      recheckExhausted: recheckAttempts >= RECHECK_MAX_ATTEMPTS
+    })
+  );
+
+  // Ask the server; while a payment is still being confirmed, ask again shortly.
+  async function refreshProStatus() {
+    clearTimeout(recheckTimer);
+    proStatus = await fetchProStatus();
+    if (proView.shouldRecheck) {
+      recheckTimer = setTimeout(() => {
+        recheckAttempts += 1;
+        refreshProStatus();
+      }, RECHECK_INTERVAL_MS);
+    }
+  }
+
+  function checkAgain() {
+    recheckAttempts = 0;
+    refreshProStatus();
+  }
+
+  onMount(() => {
+    const query = new URLSearchParams(window.location.search);
+    paidFlag = query.get('pro_paid') === '1';
+    cancelledFlag = query.get('pro_cancelled') === '1';
+    refreshProStatus();
+    return () => clearTimeout(recheckTimer);
+  });
+
+  // The server says this vet already has a Pro subscription (it asked Stripe),
+  // even if the entitlement has not reached this page yet.
+  let alreadySubscribed = $state(false);
+
   async function startProCheckout() {
+    if (!agreedToTerms) {
+      proError = 'Please tick the box to agree to the Terms and Refund Policy first.';
+      agreeBox?.focus();
+      return;
+    }
     proBusy = true;
     proError = '';
     try {
-      const res = await fetch('/api/pro/checkout', {
+      const res = await billingFetch('/api/pro/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ return_path: '/pricing' })
+        body: JSON.stringify({
+          return_path: '/pricing',
+          accept_terms: agreedToTerms,
+          terms_version: TERMS_VERSION
+        })
       });
 
       if (res.status === 401) {
@@ -30,8 +106,22 @@
       }
 
       const data = await res.json().catch(() => ({}));
-      if (data?.url) {
+      if (res.ok && data?.url) {
         window.location.href = data.url;
+        return;
+      }
+      if (res.status === 409 && data?.code === 'already_subscribed') {
+        alreadySubscribed = true;
+        proError = 'This account already has a VetNotes Pro subscription. You have not been charged again.';
+        refreshProStatus();
+        return;
+      }
+      if (data?.code === 'terms_not_accepted') {
+        proError = 'Please tick the box to agree to the Terms and Refund Policy first.';
+        return;
+      }
+      if (data?.code === 'terms_version_stale') {
+        proError = 'The Terms have changed since this page was loaded. Reload the page and agree again.';
         return;
       }
       proError =
@@ -148,6 +238,72 @@
       </p>
     </div>
 
+    {#if proView.notice === 'active'}
+      <div
+        class="max-w-2xl mx-auto mb-8 rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-4 text-emerald-900"
+        role="status"
+        data-testid="pro-notice-active"
+      >
+        <p class="font-semibold">Payment received. Pro is active on this account.</p>
+        <p class="text-sm mt-1">
+          You can change your card, get invoices or cancel at any time with Manage subscription.
+        </p>
+      </div>
+    {:else if proView.notice === 'checking'}
+      <div
+        class="max-w-2xl mx-auto mb-8 rounded-xl border border-slate-300 bg-white px-5 py-4 text-slate-700"
+        role="status"
+      >
+        Checking your account…
+      </div>
+    {:else if proView.notice === 'confirming'}
+      <div
+        class="max-w-2xl mx-auto mb-8 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900"
+        role="status"
+        data-testid="pro-notice-confirming"
+      >
+        <p class="font-semibold">We're confirming your payment.</p>
+        <p class="text-sm mt-1">
+          Pro is not active on this account yet. This page checks again every few seconds. Please
+          do not pay a second time.
+        </p>
+      </div>
+    {:else if proView.notice === 'unconfirmed'}
+      <div
+        class="max-w-2xl mx-auto mb-8 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900"
+        role="status"
+        data-testid="pro-notice-unconfirmed"
+      >
+        <p class="font-semibold">We have not been able to confirm a payment for this account.</p>
+        <p class="text-sm mt-1">
+          Pro is not active on this account. If your card was charged, please do not pay again:
+          <a href="/tickets" class="underline">open a support ticket</a> so we can check it.
+        </p>
+        <button
+          type="button"
+          onclick={checkAgain}
+          class="mt-3 px-3 py-1.5 rounded-lg text-sm font-semibold border border-amber-400 hover:bg-amber-100"
+        >
+          Check again
+        </button>
+      </div>
+    {:else if proView.notice === 'sign_in_to_confirm'}
+      <div
+        class="max-w-2xl mx-auto mb-8 rounded-xl border border-slate-300 bg-white px-5 py-4 text-slate-700"
+        role="status"
+      >
+        <a href="/login?redirectTo=%2Fpricing%3Fpro_paid%3D1" class="text-blue-600 font-semibold hover:underline">Sign in</a>
+        to see whether Pro is active on your account.
+      </div>
+    {:else if proView.notice === 'cancelled'}
+      <div
+        class="max-w-2xl mx-auto mb-8 rounded-xl border border-slate-300 bg-white px-5 py-4 text-slate-700"
+        role="status"
+      >
+        Checkout was not completed, so Pro was not started on this account.
+      </div>
+    {/if}
+
     <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
       {#each tiers as tier}
         <div
@@ -174,16 +330,56 @@
 
           <div class="space-y-2">
             {#if tier.cta.action === 'pro'}
-              <button
-                type="button"
-                onclick={startProCheckout}
-                disabled={proBusy}
-                class="block w-full text-center px-4 py-2.5 rounded-xl font-semibold transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {proBusy ? 'Starting checkout…' : tier.cta.label}
-              </button>
-              {#if proError}
-                <p class="text-sm text-red-600 text-center">{proError}</p>
+              {#if proView.cta === 'manage'}
+                <p class="text-sm font-medium text-emerald-700 text-center" data-testid="pro-active">
+                  ✓ Pro is active on this account.
+                </p>
+                <ManageSubscriptionButton />
+              {:else if proView.cta === 'included'}
+                <p class="text-sm text-slate-600 text-center" data-testid="pro-included">
+                  Pro features are already active on this account through your current plan. There is
+                  nothing to buy here.
+                </p>
+              {:else if proView.cta === 'checking'}
+                <button
+                  type="button"
+                  disabled
+                  class="block w-full text-center px-4 py-2.5 rounded-xl font-semibold bg-blue-600 text-white opacity-60 cursor-not-allowed"
+                >
+                  {proView.notice === 'confirming' ? 'Confirming your payment…' : 'Checking your account…'}
+                </button>
+              {:else}
+                <label class="flex items-start gap-2 text-sm text-slate-700 text-left">
+                  <input
+                    type="checkbox"
+                    bind:checked={agreedToTerms}
+                    bind:this={agreeBox}
+                    required
+                    data-testid="pro-agree"
+                    class="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-400"
+                  />
+                  <span>
+                    I agree to the
+                    <a href="/terms" target="_blank" rel="noopener" class="text-blue-600 underline">Terms</a>
+                    and
+                    <a href="/refunds" target="_blank" rel="noopener" class="text-blue-600 underline">Refund Policy</a>.
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onclick={startProCheckout}
+                  disabled={proBusy || alreadySubscribed}
+                  data-testid="pro-subscribe"
+                  class="block w-full text-center px-4 py-2.5 rounded-xl font-semibold transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {proBusy ? 'Starting checkout…' : tier.cta.label}
+                </button>
+                {#if proError}
+                  <p class="text-sm text-red-600 text-center" role="alert">{proError}</p>
+                {/if}
+                {#if alreadySubscribed}
+                  <ManageSubscriptionButton />
+                {/if}
               {/if}
             {:else}
             <a
@@ -215,6 +411,13 @@
     <p class="text-center text-sm text-slate-400 mt-10">
       Questions? <a href="/tickets" class="text-blue-600 hover:underline">Open a support ticket</a>
       — a real person reads every one.
+    </p>
+    <p class="text-center text-sm text-slate-500 mt-3">
+      <a href="/terms" class="text-blue-600 hover:underline">Terms</a>
+      ·
+      <a href="/refunds" class="text-blue-600 hover:underline">Refund Policy</a>
+      ·
+      <a href="/privacy" class="text-blue-600 hover:underline">Privacy</a>
     </p>
   </div>
 </div>

@@ -92,6 +92,45 @@ Events:
 The Stripe account is shared with other products. Every checkout this app creates stamps
 `metadata.app_key=vetnotes`, so VetSorcery's webhook skips it. Do not remove that.
 
+### Terms, Refund Policy and Privacy pages are DRAFTS
+
+`/terms`, `/refunds` and `/privacy` were drafted on 2026-11-27 from facts in this repository. No
+lawyer has read them. **Do not deploy them until the owner and a lawyer have reviewed the text.**
+Each page's source starts with a note listing the facts used and the points still undecided
+(`TODO(owner)` / `TODO(lawyer)`).
+
+Checkout refuses to start unless the buyer ticks "I agree to the Terms and Refund Policy". The
+route records `terms_version` and `terms_accepted_at` (server time) in the Stripe session and
+subscription metadata and in `vetnotes_pro_billing/{uid}`. When the reviewed wording goes in,
+change `TERMS_VERSION` in `src/lib/constants/legal.ts` so the record shows which text each vet
+agreed to. VetNotes Basic is sold through a Stripe Payment Link and has no agreement step.
+
+### One Stripe customer per vet
+
+`POST /api/pro/checkout` keeps one Stripe customer per signed-in user in the Firestore collection
+`vetnotes_pro_billing/{uid}` (Admin SDK only; no client rule should ever grant access to it, or to
+`vetnotes_pro_entitlements`). Before starting a checkout it asks Stripe whether that customer
+already has a live Pro subscription and refuses with 409 if so. A customer is created the first
+time a vet presses Subscribe, so abandoned checkouts leave customers with no subscription in the
+Stripe dashboard. That is expected.
+
+### Stripe Customer Portal (Manage subscription)
+
+`POST /api/pro/portal` opens the Stripe Billing Portal for the signed-in vet's own customer. It
+needs `STRIPE_SECRET_KEY` only. Before it works live, the owner must, in the Stripe dashboard
+(Settings -> Billing -> Customer portal), for live mode:
+
+- Switch the Customer Portal on and save the configuration. Until then Stripe refuses and the
+  route answers 502.
+- Allow customers to cancel subscriptions, with cancellation set to **at the end of the billing
+  period**. The Terms and Refund Policy pages say access runs to the end of the paid period. If
+  the portal is set to cancel immediately, Stripe sends `customer.subscription.deleted` straight
+  away and the webhook removes Pro at once, which contradicts those pages.
+- Allow customers to update payment methods and view invoices.
+
+The account is shared with other products, and the portal configuration is account-wide. Check
+the product list and branding shown in the portal are right for every product that uses it.
+
 ---
 
 ## Local development
