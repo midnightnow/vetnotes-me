@@ -28,6 +28,10 @@
     import { theme, THEMES } from "$lib/stores/theme";
     import { decodePayload } from "$lib/utils/encoding";
     import {
+        readClinicalImportParams,
+        cleanClinicalImportUrl,
+    } from "$lib/utils/importParams";
+    import {
         saveDraft,
         loadDraft,
         clearDraft,
@@ -107,16 +111,19 @@
 
         // === Imaging Hub Import Receiver ===
         if (typeof window !== 'undefined') {
-            const urlParams = new URLSearchParams(window.location.search);
-            const source = urlParams.get('source');
-            const encodedPackage = urlParams.get('package');
+            // Prefer URL hash fragment (Red Team L7: keeps clinical payloads out of
+            // server/CDN logs and Referer headers) with query-string fallback.
+            const { source, encodedPackage } = readClinicalImportParams(
+                window.location.search,
+                window.location.hash
+            );
 
             if (source === 'imaging' && encodedPackage) {
                 try {
                     const study = decodePayload<any>(encodedPackage);
                     importedData = study;
 
-                    let compiled = `--- IMPORTED RADIOGRAPHIC STUDY (ID: ${study.studyId.slice(-6)}) ---\n\n`;
+                    let compiled = `--- IMPORTED RADIOGRAPHIC STUDY (ID: ${(study.studyId || 'STUDY').slice(-6)}) ---\n\n`;
                     
                     if (study.signalment) {
                         const { species, breed, age, sex } = study.signalment;
@@ -138,11 +145,8 @@
                     importedBannerVisible = true;
                     status = 'Imaging data imported';
 
-                    // Clean URL
-                    const url = new URL(window.location.href);
-                    url.searchParams.delete('source');
-                    url.searchParams.delete('package');
-                    window.history.replaceState({}, '', url.pathname);
+                    // Clean clinical payload from both query string and hash fragment
+                    window.history.replaceState({}, '', cleanClinicalImportUrl(window.location.href));
                 } catch (err) {
                     console.error('Failed to parse imaging package:', err);
                 }
